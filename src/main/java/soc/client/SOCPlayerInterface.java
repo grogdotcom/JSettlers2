@@ -125,6 +125,15 @@ public class SOCPlayerInterface extends Frame
     PlayerClientListener.NonBlockingDialogDismissListener
 {
     /**
+     * The classic JSettlers goldenrod dialog background color; pale yellow-orange tint #FFE6A2.
+     * Typically used with foreground {@link Color#BLACK}, like in game/chat text areas,
+     * {@link TradeOfferPanel}, and {@link AskDialog}.
+     * @since 2.0.00
+     * @see SOCPlayerClient#JSETTLERS_BG_GREEN
+     */
+    public static final Color DIALOG_BG_GOLDENROD = new Color(255, 230, 162);
+
+    /**
      * Boolean per-game preference to mute all sound effects in this game.
      * For use with constructor's {@code localPrefs} parameter. Default value is {@code false}.
      * @see #isSoundMuted()
@@ -151,17 +160,16 @@ public class SOCPlayerInterface extends Frame
     private static final SOCStringManager strings = SOCStringManager.getClientManager();
 
     /**
-     * Is this a windows platform, according to {@link System#getProperty(String) System.getProperty("os.name")}?
-     *<P>
-     * Before v2.0.00 this field was {@code SOCPI_isPlatformWindows}.
-     *
+     * System property os.name; For use by {@link #SOCPI_isPlatformWindows}.
      * @since 1.1.08
      */
-    private static final boolean IS_PLATFORM_WINDOWS;
-    static {
-        String osName = System.getProperty("os.name");
-        IS_PLATFORM_WINDOWS = (osName != null) && (osName.toLowerCase().indexOf("windows") != -1);
-    }
+    private final static String SOCPI_osName = System.getProperty("os.name");
+
+    /**
+     * Are we running on the Windows platform, according to {@link #SOCPI_osName}?
+     * @since 1.1.08
+     */
+    private final static boolean SOCPI_isPlatformWindows = (SOCPI_osName != null) && (SOCPI_osName.toLowerCase().indexOf("windows") != -1);
 
     /**
      * Minimum frame width calculated in constructor from this game's player count and board,
@@ -597,7 +605,7 @@ public class SOCPlayerInterface extends Frame
      * Thread executor to queue and play {@link #playSound(byte[])} using {@link PIPlaySound}s.
      * @since 1.2.00
      */
-    private static final ExecutorService soundQueueThreader = Executors.newSingleThreadExecutor();
+    private final static ExecutorService soundQueueThreader = Executors.newSingleThreadExecutor();
 
     /**
      * Listener for
@@ -686,7 +694,7 @@ public class SOCPlayerInterface extends Frame
         playerColors[3] = new Color(249, 128,  29); // orange
         if (is6player)
         {
-            playerColors[4] = new Color(97, 151, 113); // almost same green as SwingMainDisplay.JSETTLERS_BG_GREEN #61AF71
+            playerColors[4] = new Color(97, 151, 113); // almost same green as playerclient.JSETTLERS_BG_GREEN #61AF71
             playerColors[5] = playerColors[3];  // orange
             playerColors[3] = new Color(166, 88, 201);  // violet
         }
@@ -722,7 +730,7 @@ public class SOCPlayerInterface extends Frame
          * more initialization stuff
          */
         int piHeight = HEIGHT_MIN_4PL, piWidth;
-        if ((is6player || game.hasSeaBoard) && IS_PLATFORM_WINDOWS)
+        if ((is6player || game.hasSeaBoard) && SOCPI_isPlatformWindows)
             piHeight += 25;
         height_base = piHeight;
 
@@ -900,7 +908,7 @@ public class SOCPlayerInterface extends Frame
 
         textDisplay = new SnippingTextArea("", 40, 80, TextArea.SCROLLBARS_VERTICAL_ONLY, 80);
         textDisplay.setFont(new Font("SansSerif", Font.PLAIN, 10));
-        textDisplay.setBackground(SwingMainDisplay.DIALOG_BG_GOLDENROD);
+        textDisplay.setBackground(DIALOG_BG_GOLDENROD);
         textDisplay.setForeground(Color.BLACK);
         textDisplay.setEditable(false);
         add(textDisplay);
@@ -909,7 +917,7 @@ public class SOCPlayerInterface extends Frame
 
         chatDisplay = new SnippingTextArea("", 40, 80, TextArea.SCROLLBARS_VERTICAL_ONLY, 100);
         chatDisplay.setFont(new Font("SansSerif", Font.PLAIN, 10));
-        chatDisplay.setBackground(SwingMainDisplay.DIALOG_BG_GOLDENROD);
+        chatDisplay.setBackground(DIALOG_BG_GOLDENROD);
         chatDisplay.setForeground(Color.BLACK);
         chatDisplay.setEditable(false);
         if (is6player)
@@ -989,7 +997,7 @@ public class SOCPlayerInterface extends Frame
          */
         if (is6player)
         {
-            if (IS_PLATFORM_WINDOWS)
+            if (SOCPI_isPlatformWindows)
             {
                 sbFixNeeded = true;
                 hands[0].addMouseListener(this);  // upper-left

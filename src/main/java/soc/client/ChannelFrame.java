@@ -21,30 +21,27 @@
  **/
 package soc.client;
 
-import java.awt.BorderLayout;
+import java.awt.Canvas;
 import java.awt.Color;
-import java.awt.Container;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Frame;
+import java.awt.Insets;
+import java.awt.Point;
+import java.awt.TextField;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
 import java.util.StringTokenizer;
 import java.util.Vector;
-
-import javax.swing.DefaultListModel;
-import javax.swing.JFrame;
-import javax.swing.JList;
-import javax.swing.JScrollPane;
-import javax.swing.JSplitPane;
-import javax.swing.JTextField;
-import javax.swing.ListSelectionModel;
-import javax.swing.WindowConstants;
 
 
 /** The chat channel window
@@ -52,11 +49,14 @@ import javax.swing.WindowConstants;
  *  @author <A HREF="http://www.nada.kth.se/~cristi">Cristian Bogdan</A>
  */
 @SuppressWarnings("serial")
-/*package*/ class ChannelFrame extends JFrame
+/*package*/ class ChannelFrame extends Frame
 {
     public SnippingTextArea ta;
-    public JTextField tf;
-    public JList<String> lst;
+    public TextField tf;
+    public java.awt.List lst;
+    public Canvas cnvs;
+    public int ncols;
+    public int npix = 1;
 
     final MainDisplay md;
     String cname;
@@ -71,61 +71,68 @@ import javax.swing.WindowConstants;
     public ChannelFrame(final String t, final MainDisplay md)
     {
         super(strings.get("channel.channel", t));
-        setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
-        final Container cp = getContentPane();
+        setBackground(SOCPlayerClient.JSETTLERS_BG_GREEN);
+        setForeground(Color.BLACK);
 
-        final Font panelFont = new Font("SansSerif", Font.PLAIN, 12);
-
-        cp.setLayout(new BorderLayout(2, 2));
-        cp.setFont(panelFont);
-
-        ta = new SnippingTextArea(20, 40, 100);  // minimum width is based on number of character columns
-        tf = new JTextField(strings.get("base.please.wait"));  // "Please wait..."
-        lst = new JList<String>(new DefaultListModel<String>());
-        lst.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        lst.setSize(new Dimension(180, 200));
-        lst.setMinimumSize(new Dimension(30, 200));
-
+        ta = new SnippingTextArea("", 100);
+        tf = new TextField(strings.get("base.please.wait"));  // "Please wait..."
+        lst = new java.awt.List(0, false);
         this.md = md;
         cname = t;
-        ta.setFont(panelFont);
-        // on Windows, make sure ta keeps its usual black/white colors and not grayed-out un-editable colors:
-        {
-            final Color bg = ta.getBackground(), fg = ta.getForeground();
-            ta.setEditable(false);
-            ta.setBackground(bg);
-            ta.setForeground(fg);
-        }
+        ta.setEditable(false);
         tf.setEditable(false);
+        cnvs = new Canvas();
+        cnvs.setBackground(Color.lightGray);
+        cnvs.setSize(5, 200);
+        lst.setSize(180, 200);
+        setFont(new Font("SansSerif", Font.PLAIN, 12));
+        add(ta);
+        add(cnvs);
+        add(lst);
+        add(tf);
 
-        JSplitPane sp = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, ta, new JScrollPane(lst));
-        add(sp, BorderLayout.CENTER);
-        add(tf, BorderLayout.SOUTH);
+        setLayout(null);
 
         setSize(640, 480);
-        setMinimumSize(getSize());
         setLocationByPlatform(true);
-        sp.setDividerLocation(500);
         history.addElement("");
 
         tf.addActionListener(new InputActionListener());
         tf.addKeyListener(new InputKeyListener());
+        cnvs.addMouseListener(new DividerMouseListener());
         addWindowListener(new CFWindowListener());
     }
 
-    /**
-     * Add some text.
-     * @param s  Text to add; will use {@code "\n"} to split to multiple lines
-     */
+    /** add some text*/
     public void print(String s)
     {
-        StringTokenizer st = new StringTokenizer(s, "\n", false);
+        StringTokenizer st = new StringTokenizer(s, " \n", true);
+        String row = "";
 
         while (st.hasMoreElements())
         {
-            ta.append(st.nextToken() + "\n");
+            String tk = st.nextToken();
+
+            if (tk.equals("\n"))
+            {
+                continue;
+            }
+
+            if ((row.length() + tk.length()) > ncols)
+            {
+                ta.append(row + "\n");
+                row = tk;
+
+                continue;
+            }
+
+            row += tk;
         }
 
+        if (row.trim().length() > 0)
+        {
+            ta.append(row + "\n");
+        }
     }
 
     /** an error occured, stop editing */
@@ -145,34 +152,32 @@ import javax.swing.WindowConstants;
     /** add a member to the group */
     public void addMember(String s)
     {
-        final DefaultListModel<String> lm = (DefaultListModel<String>) lst.getModel();
-
         synchronized(lst.getTreeLock())
         {
             int i;
 
-            for (i = lm.getSize() - 1; i >= 0; i--)
+            for (i = lst.getItemCount() - 1; i >= 0; i--)
             {
-                if (lm.get(i).compareTo(s) < 0)
+                if (lst.getItem(i).compareTo(s) < 0)
+                {
                     break;
+                }
             }
 
-            lm.add(i + 1, s);
+            lst.add(s, i + 1);
         }
     }
 
     /** delete a member from the channel */
     public void deleteMember(String s)
     {
-        final DefaultListModel<String> lm = (DefaultListModel<String>) lst.getModel();
-
         synchronized(lst.getTreeLock())
         {
-            for (int i = lm.getSize() - 1; i >= 0; i--)
+            for (int i = lst.getItemCount() - 1; i >= 0; i--)
             {
-                if (lm.get(i).equals(s))
+                if (lst.getItem(i).equals(s))
                 {
-                    lm.remove(i);
+                    lst.remove(i);
 
                     break;
                 }
@@ -197,6 +202,58 @@ import javax.swing.WindowConstants;
                 history.addElement("");
                 historyCounter = 1;
             }
+        }
+    }
+
+    private class DividerMouseListener extends MouseAdapter
+    {
+        public void mouseEntered(MouseEvent e)
+        {
+            if (!down)
+            {
+                setCursor(Cursor.getPredefinedCursor(Cursor.W_RESIZE_CURSOR));
+            }
+        }
+        public void mouseExited(MouseEvent e)
+        {
+            if (!down)
+            {
+                setCursor(Cursor.getDefaultCursor());
+            }
+        }
+        public void mousePressed(MouseEvent e)
+        {
+            down = true;
+        }
+        public void mouseReleased(MouseEvent e)
+        {
+            if (! cnvs.contains(e.getPoint()))
+            {
+                setCursor(Cursor.getDefaultCursor());
+            }
+
+            Dimension d = ta.getSize();
+            Point p = cnvs.getLocation();
+            // e.getX() is in cnvs coords, and make sure nothing dissappears
+            int diff = (p.x + e.getX() - 7) - d.width;
+            diff = Math.max(diff, 30 - d.width);
+            diff = Math.min(diff, (getSize().width - 30) - d.width);
+            d.width += diff;
+            ta.setSize(d);
+            ncols = (int) ((((float) d.width) * 100.0) / ((float) npix)) - 2;
+
+            d = lst.getSize();
+            d.width -= diff;
+            lst.setSize(d);
+
+            p.x += diff;
+            cnvs.setLocation(p);
+
+            p = lst.getLocation();
+            p.x += diff;
+            lst.setLocation(p);
+
+            down = false;
         }
     }
 
@@ -239,4 +296,37 @@ import javax.swing.WindowConstants;
         }
     }
 
+    /**
+     * DOCUMENT ME!
+     */
+    @Override
+    public void doLayout()
+    {
+        Insets i = getInsets();
+        Dimension dim = getSize();
+        dim.width -= (i.left + i.right);
+        dim.height -= (i.top + i.bottom);
+
+        int tfheight = tf.getPreferredSize().height;
+
+        int h = dim.height - tfheight;
+        int lw = lst.getSize().width;
+        int cw = cnvs.getSize().width;
+        int w = dim.width - lw - cw;
+
+        tf.setSize(dim.width, tfheight);
+        tf.setLocation(i.left, i.top + h);
+
+        ta.setSize(w, h);
+        ta.setLocation(i.left, i.top);
+
+        cnvs.setSize(cw, h);
+        cnvs.setLocation(i.left + w, i.top);
+
+        lst.setSize(lw, h);
+        lst.setLocation(w + cw + i.left, i.top);
+
+        npix = ta.getPreferredSize(100, 100).width;
+        ncols = (int) ((((float) w) * 100.0) / ((float) npix)) - 2;
+    }
 }

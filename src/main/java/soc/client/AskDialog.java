@@ -309,9 +309,8 @@ public abstract class AskDialog extends JDialog
 
         this.md = md;
         pi = null;
-        final Color[] colors = SwingMainDisplay.getForegroundBackgroundColors(true);
-        setBackground(colors[2]);  // SwingMainDisplay.DIALOG_BG_GOLDENROD
-        setForeground(colors[0]);  // Color.BLACK
+        setBackground(SOCPlayerInterface.DIALOG_BG_GOLDENROD);
+        setForeground(Color.BLACK);
         setFont(new Font("Dialog", Font.PLAIN, 12));
 
         getRootPane().setBackground(null);  // inherit

@@ -59,6 +59,7 @@ import java.util.MissingResourceException;
 import java.util.Timer;  // For auto-roll
 import java.util.TimerTask;
 
+import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.DefaultListModel;
 import javax.swing.JComponent;
@@ -108,7 +109,7 @@ import javax.swing.UIManager;
         SPECIALVICTORYPOINTS = 9;
 
     /** Auto-roll timer countdown, 5 seconds unless changed at program start. */
-    public static final int AUTOROLL_TIME = 5;
+    public static int AUTOROLL_TIME = 5;
 
     /** Array of five zeroes, one per resource type; for {@link #sqPanel}. */
     protected static final int[] zero = { 0, 0, 0, 0, 0 };
@@ -2266,28 +2267,22 @@ import javax.swing.UIManager;
     }
 
     /**
-     * Callback from {@link TradeOfferPanel} when counter-offer is shown or hidden.
+     * Callback from {@link TradeOfferPanel}.
      * For players who aren't the client:
      * If our {@link TradeOfferPanel} shows/hides the counter offer,
      * may need to rearrange or hide controls under it.
      * This should be called when in {@link TradeOfferPanel#OFFER_MODE},
      * not in {@link TradeOfferPanel#MESSAGE_MODE}.
-     *<P>
-     * After any component show/hide and rearrangement, calls {@link #validate()} and {@link #repaint()};
-     * this is necessary on win32 to avoid layout cutoff/repaint problems on Swing.
      *
      * @param counterVisible Is the counter-offer showing?
      * @since 1.1.08
      */
     public void offerCounterOfferVisibleChanged(final boolean counterVisible)
     {
-        invalidate();
-        if (offerCounterHidesFace || offerHidingControls)
-        {
-            hideTradeMsgShowOthers(false);  // move 'offer' around if needed, hide/show faceImg
-        }
-        validate();
-        repaint();
+        if (! (offerCounterHidesFace || offerHidingControls))
+            return;
+
+        hideTradeMsgShowOthers(false);  // move 'offer' around if needed, hide/show faceImg.
     }
 
     /**
@@ -4046,7 +4041,7 @@ import javax.swing.UIManager;
      * @author Jeremy D Monin &lt;jeremy@nand.net&gt;
      * @since 1.1.00
      */
-    /*package*/ abstract static class ResourceTradePopupMenu extends PopupMenu
+    /* package-access */ static abstract class ResourceTradePopupMenu extends PopupMenu
     {
         protected SOCHandPanel hpan;
 

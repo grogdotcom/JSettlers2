@@ -1965,7 +1965,7 @@ public class SOCPlayer implements SOCDevCardConstants, Serializable, Cloneable
         if (! foundClosedEnd)
             return null;
 
-        if (pp instanceof SOCVillage)
+        if ((pp != null) && (pp instanceof SOCVillage))
             isTradeRouteFarEndClosed_foundVillage = (SOCVillage) pp;
 
         return segment;
@@ -2800,7 +2800,7 @@ public class SOCPlayer implements SOCDevCardConstants, Serializable, Cloneable
             }
             else if (boardHasVillages)
             {
-                pp = board.getVillageAtNode(edgeNodes[i]);
+                pp = ((SOCBoardLarge) board).getVillageAtNode(edgeNodes[i]);
             }
 
             if (pp == null)
@@ -2836,7 +2836,7 @@ public class SOCPlayer implements SOCDevCardConstants, Serializable, Cloneable
             return;  // <--- Early return: Temporary piece ---
         }
 
-        final int seType = board.getSpecialEdgeType(edge);
+        final int seType = ((SOCBoardLarge) board).getSpecialEdgeType(edge);
         if (seType != 0)
         {
             SOCPlayer currentPlayer = game.getPlayer(game.getCurrentPlayerNumber());
@@ -2889,7 +2889,7 @@ public class SOCPlayer implements SOCDevCardConstants, Serializable, Cloneable
          * _SC_FTRI: Is ship placed at a "gift" port that can be
          * removed from the board for placement elsewhere?
          */
-        if (game.isGameOptionSet(SOCGameOption.K_SC_FTRI) && board.canRemovePort(edge))
+        if (game.isGameOptionSet(SOCGameOption.K_SC_FTRI) && ((SOCBoardLarge) board).canRemovePort(edge))
         {
             game.removePort(this, edge);  // updates game state, fires SOCScenarioPlayerEvent.REMOVED_TRADE_PORT
         }
@@ -2916,7 +2916,7 @@ public class SOCPlayer implements SOCDevCardConstants, Serializable, Cloneable
             if (edge == -9)
                 continue;
             SOCRoutePiece pp = getRoadOrShip(edge);
-            if (! (pp instanceof SOCShip))
+            if ((pp == null) || ! (pp instanceof SOCShip))
                 continue;
             SOCShip sh = (SOCShip) pp;
             if (sh.isClosed())
@@ -3987,6 +3987,21 @@ public class SOCPlayer implements SOCDevCardConstants, Serializable, Cloneable
 
         int[] pset = new int[L];
         Iterator<Integer> it = potentialSettlements.iterator();
+        for (int i = 0; it.hasNext(); ++i)
+            pset[i] = it.next().intValue();
+        return pset;
+    }
+
+    public HashSet<Integer> getPotentialRoads() { return potentialRoads; }
+
+    public int[] getPotentialRoads_arr()
+    {
+        int L = potentialRoads.size();
+        if (L == 0)
+            return null;
+
+        int[] pset = new int[L];
+        Iterator<Integer> it = potentialRoads.iterator();
         for (int i = 0; it.hasNext(); ++i)
             pset[i] = it.next().intValue();
         return pset;

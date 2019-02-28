@@ -825,6 +825,8 @@ public class SOCGame implements Serializable, Cloneable
      */
     private SOCBoard board;
 
+    private SOCResourceSet bank;
+
     /**
      * the game options ({@link SOCGameOption}), or null
      * @since 1.1.07
@@ -1271,6 +1273,7 @@ public class SOCGame implements Serializable, Cloneable
             hasSeaBoard = false;
             vp_winner = VP_WINNER_STANDARD;
             hasScenarioWinCondition = false;
+            bank = new SOCResourceSet(19, 19, 19, 19, 19, 0);
         }
 
         if (boardFactory == null)
@@ -2097,6 +2100,8 @@ public class SOCGame implements Serializable, Cloneable
     {
         return board;
     }
+
+    public SOCResourceSet getBank() { return bank; }
 
     /**
      * @return the list of players
@@ -3383,6 +3388,7 @@ public class SOCGame implements Serializable, Cloneable
                 }
 
                 ppPlayer.getResources().add(resources);
+                bank.subtract(resources);
                 if (goldHexAdjacent > 0)
                     ppPlayer.setNeedToPickGoldHexResources(goldHexAdjacent);
             }
@@ -3519,8 +3525,12 @@ public class SOCGame implements Serializable, Cloneable
                 revealFogHiddenHex(hexCoord, hexType, diceNum);
                 if (currentPlayerNumber != -1)
                 {
-                    if ((hexType >= SOCResourceConstants.CLAY) && (hexType <= SOCResourceConstants.WOOD))
-                        players[currentPlayerNumber].getResources().add(1, hexType);
+                    if ((hexType >= SOCResourceConstants.CLAY) && (hexType <= SOCResourceConstants.WOOD)) {
+                        if (bank.getAmount(hexType) > 0) {
+                            players[currentPlayerNumber].getResources().add(1, hexType);
+                            bank.subtract(1, hexType);
+                        }
+                    }
                     else if (hexType == SOCBoardLarge.GOLD_HEX)
                         ++goldHexes;
                 }
@@ -5248,16 +5258,43 @@ public class SOCGame implements Serializable, Cloneable
             /**
              * distribute resources
              */
+            SOCResourceSet totalCollected = new SOCResourceSet();
             for (int i = 0; i < maxPlayers; i++)
             {
                 if (! isSeatVacant(i))
                 {
                     SOCPlayer pl = players[i];
-                    pl.addRolledResources(getResourcesGainedFromRoll(pl, currentDice));
+                    SOCResourceSet gainedFromRoll = getResourcesGainedFromRoll(pl, currentDice);
+                    totalCollected.add(gainedFromRoll);
+                    //pl.addRolledresource(gainedFromRoll)
+                    
                     if (hasSeaBoard && pl.getNeedToPickGoldHexResources() > 0)
                         anyGoldHex = true;
                 }
             }
+            if (!bank.contains(totalCollected)) {
+                SOCResourceSet overflow = new SOCResourceSet(totalCollected);
+                overflow.subtract(bank);
+            }
+            for (int i = 0; i < maxPlayers; i++)
+            {
+                if (! isSeatVacant(i))
+                {
+                    SOCPlayer pl = players[i];
+                    SOCResourceSet gainedFromRoll = getResourcesGainedFromRoll(pl, currentDice);
+                    
+                    for (int c = 1; c <= 5; c++) {
+                        int amount = gainedFromRoll.getAmount(c);
+                        gainedFromRoll.subtract(amount, c);
+                    }
+                    pl.addRolledResources(gainedFromRoll);
+                    bank.subtract(gainedFromRoll);
+               
+                }
+            }
+
+
+
 
             if (sc_piri_plGainsGold)
             {
@@ -5367,7 +5404,7 @@ public class SOCGame implements Serializable, Cloneable
      *
      * @return the resource set
      */
-    private SOCResourceSet getResourcesGainedFromRoll(SOCPlayer player, final int roll)
+    public SOCResourceSet getResourcesGainedFromRoll(SOCPlayer player, final int roll)
     {
         SOCResourceSet resources = new SOCResourceSet();
         SOCResourceSet missedResources = new SOCResourceSet();
@@ -5515,6 +5552,9 @@ public class SOCGame implements Serializable, Cloneable
     public void discard(final int pn, ResourceSet rs)
     {
         players[pn].getResources().subtract(rs);
+        for (int res = SOCResourceConstants.CLAY; res <= SOCResourceConstants.WOOD; res++) {
+            bank.add(rs.getAmount(res), res);
+        }
         players[pn].setNeedToDiscard(false);
 
         /**
@@ -5582,6 +5622,10 @@ public class SOCGame implements Serializable, Cloneable
      */
     public boolean canPickGoldHexResources(final int pn, final ResourceSet rs)
     {
+        if (!bank.contains(rs)) {
+            return false;
+        }
+
         if ((gameState != WAITING_FOR_PICK_GOLD_RESOURCE)
             && (gameState != STARTS_WAITING_FOR_PICK_GOLD_RESOURCE))
         {
@@ -5626,6 +5670,7 @@ public class SOCGame implements Serializable, Cloneable
     public int pickGoldHexResources(final int pn, final SOCResourceSet rs)
     {
         players[pn].getResources().add(rs);
+        bank.subtract(rs);
         players[pn].setNeedToPickGoldHexResources(0);
         lastActionTime = System.currentTimeMillis();
 
@@ -7043,6 +7088,8 @@ public class SOCGame implements Serializable, Cloneable
         {
             playerResources.subtract(give);
             playerResources.add(get);
+            bank.add(give);
+            bank.subtract(get);
             lastActionTime = System.currentTimeMillis();
             lastActionWasBankTrade = false;
             currPlayer.lastActionBankTrade_give = null;
@@ -7052,6 +7099,8 @@ public class SOCGame implements Serializable, Cloneable
 
         playerResources.subtract(give);
         playerResources.add(get);
+        bank.add(give);
+        bank.subtract(get);
         lastActionTime = System.currentTimeMillis();
         lastActionWasBankTrade = true;
         currPlayer.lastActionBankTrade_give = give;
@@ -7142,6 +7191,8 @@ public class SOCGame implements Serializable, Cloneable
         SOCResourceSet resources = players[pn].getResources();
         resources.subtract(1, SOCResourceConstants.CLAY);
         resources.subtract(1, SOCResourceConstants.WOOD);
+        bank.add(1, SOCResourceConstants.CLAY);
+        bank.add(1, SOCResourceConstants.WOOD);
         oldGameState = gameState;  // PLAY1 or SPECIAL_BUILDING
         gameState = PLACING_ROAD;
     }
@@ -7161,6 +7212,10 @@ public class SOCGame implements Serializable, Cloneable
         resources.subtract(1, SOCResourceConstants.SHEEP);
         resources.subtract(1, SOCResourceConstants.WHEAT);
         resources.subtract(1, SOCResourceConstants.WOOD);
+        bank.add(1, SOCResourceConstants.CLAY);
+        bank.add(1, SOCResourceConstants.SHEEP);
+        bank.add(1, SOCResourceConstants.WHEAT);
+        bank.add(1, SOCResourceConstants.WOOD);
         oldGameState = gameState;  // PLAY1 or SPECIAL_BUILDING
         gameState = PLACING_SETTLEMENT;
     }
@@ -7178,6 +7233,8 @@ public class SOCGame implements Serializable, Cloneable
         SOCResourceSet resources = players[pn].getResources();
         resources.subtract(3, SOCResourceConstants.ORE);
         resources.subtract(2, SOCResourceConstants.WHEAT);
+        bank.add(3, SOCResourceConstants.ORE);
+        bank.add(2, SOCResourceConstants.WHEAT);
         oldGameState = gameState;  // PLAY1 or SPECIAL_BUILDING
         gameState = PLACING_CITY;
     }
@@ -7196,6 +7253,8 @@ public class SOCGame implements Serializable, Cloneable
         SOCResourceSet resources = players[pn].getResources();
         resources.subtract(1, SOCResourceConstants.SHEEP);
         resources.subtract(1, SOCResourceConstants.WOOD);
+        bank.add(1, SOCResourceConstants.SHEEP);
+        bank.add(1, SOCResourceConstants.WOOD);
         oldGameState = gameState;  // PLAY1 or SPECIAL_BUILDING
         gameState = PLACING_SHIP;
     }
@@ -7258,6 +7317,8 @@ public class SOCGame implements Serializable, Cloneable
         SOCResourceSet resources = players[pn].getResources();
         resources.add(1, SOCResourceConstants.CLAY);
         resources.add(1, SOCResourceConstants.WOOD);
+        bank.subtract(1, SOCResourceConstants.CLAY);
+        bank.subtract(1, SOCResourceConstants.WOOD);
         if (oldGameState != SPECIAL_BUILDING)
             gameState = PLAY1;
         else
@@ -7281,6 +7342,10 @@ public class SOCGame implements Serializable, Cloneable
         resources.add(1, SOCResourceConstants.SHEEP);
         resources.add(1, SOCResourceConstants.WHEAT);
         resources.add(1, SOCResourceConstants.WOOD);
+        bank.subtract(1, SOCResourceConstants.CLAY);
+        bank.subtract(1, SOCResourceConstants.SHEEP);
+        bank.subtract(1, SOCResourceConstants.WHEAT);
+        bank.subtract(1, SOCResourceConstants.WOOD);
         if (oldGameState != SPECIAL_BUILDING)
             gameState = PLAY1;
         else
@@ -7298,6 +7363,8 @@ public class SOCGame implements Serializable, Cloneable
         SOCResourceSet resources = players[pn].getResources();
         resources.add(3, SOCResourceConstants.ORE);
         resources.add(2, SOCResourceConstants.WHEAT);
+        bank.subtract(3, SOCResourceConstants.ORE);
+        bank.subtract(2, SOCResourceConstants.WHEAT);
         if (oldGameState != SPECIAL_BUILDING)
             gameState = PLAY1;
         else
@@ -7327,6 +7394,8 @@ public class SOCGame implements Serializable, Cloneable
         SOCResourceSet resources = players[pn].getResources();
         resources.add(1, SOCResourceConstants.SHEEP);
         resources.add(1, SOCResourceConstants.WOOD);
+        bank.subtract(1, SOCResourceConstants.SHEEP);
+        bank.subtract(1, SOCResourceConstants.WOOD);
         if (oldGameState != SPECIAL_BUILDING)
             gameState = PLAY1;
         else
@@ -7434,6 +7503,9 @@ public class SOCGame implements Serializable, Cloneable
             resources.subtract(1, SOCResourceConstants.ORE);
             resources.subtract(1, SOCResourceConstants.SHEEP);
             resources.subtract(1, SOCResourceConstants.WHEAT);
+            bank.add(1, SOCResourceConstants.ORE);
+            bank.add(1, SOCResourceConstants.SHEEP);
+            bank.add(1, SOCResourceConstants.WHEAT);
             players[currentPlayerNumber].getInventory().addDevCard(1, SOCInventory.NEW, card);
             lastActionTime = System.currentTimeMillis();
             lastActionWasBankTrade = false;
@@ -7782,6 +7854,10 @@ public class SOCGame implements Serializable, Cloneable
             return false;
         }
 
+        if (!bank.contains(pick)) {
+            return false;
+        }
+
         if (pick.getTotal() != 2)
         {
             return false;
@@ -7812,6 +7888,7 @@ public class SOCGame implements Serializable, Cloneable
         for (int i = SOCResourceConstants.CLAY; i <= SOCResourceConstants.WOOD;
                 i++)
         {
+            bank.subtract(pick.getAmount(i), i);
             players[currentPlayerNumber].getResources().add(pick.getAmount(i), i);
         }
 
