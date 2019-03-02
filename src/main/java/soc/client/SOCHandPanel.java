@@ -605,6 +605,7 @@ import javax.swing.UIManager;
         final Color pcolor = playerInterface.getPlayerColor(playerNumber);
         setBackground(pcolor);
         setForeground(COLOR_FOREGROUND);
+        setOpaque(true);
         setFont(new Font("SansSerif", Font.PLAIN, 10));
 
         blankStandIn = new ColorSquare(pcolor, strings.get("hpan.one.moment"));  // "One moment..."
