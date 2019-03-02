@@ -415,6 +415,11 @@ public class SwingMainDisplay extends JPanel implements MainDisplay
         return this;
     }
 
+    public final int getDisplayScaleFactor()
+    {
+        return displayScale;
+    }
+
     public WindowAdapter createWindowAdapter()
     {
         return new ClientWindowAdapter(this);
