@@ -12,9 +12,7 @@ class RLRobotBrain(rc: SOCRobotClient,
                    mq: CappedQueue[SOCMessage]
                   ) extends SOCRobotBrain(rc, params, ga, mq) {
 
-  val playerProbableHandMap: Map[Int, MutableSOCResourceSetTree] = ga.getPlayers.map(_.getPlayerNumber).map { player =>
-    player -> SOCPossibleHandTree.generateMutable(player)
-  }.toMap
+  val possibleHands = SOCPossibleHands.emptyHands
 
   //Temporary!! Anything with two steps probably needs to be done seperately
   def doMove(move: SOCPossibleMove): Unit = move match {
@@ -44,9 +42,23 @@ class RLRobotBrain(rc: SOCRobotClient,
     case Knight(robber) =>
       client.moveRobber(game, ourPlayerData, robber.node)
       client.choosePlayer(game, robber.playerStole.getOrElse(-1))
-    case YearOfPlenty(res1, res2) => client.playDevCard(game, SOCDevCardConstants.DISC)
-    case Monopoly(res) => client.playDevCard(game, SOCDevCardConstants.MONO)
-    case RoadBuilder(edge1, edge2) => client.playDevCard(game, SOCDevCardConstants.DISC)
+    case YearOfPlenty(res1, res2) =>
+      val resources = new SOCResourceSet()
+      resources.add(1, res1)
+      resources.add(1, res2)
+      client.playDevCard(game, SOCDevCardConstants.DISC)
+      client.pickResources(game, resources)
+    case Monopoly(res) =>
+      client.playDevCard(game, SOCDevCardConstants.MONO)
+      client.pickResourceType(game, res)
+    case RoadBuilder(edge1, edge2) =>
+      client.playDevCard(game, SOCDevCardConstants.ROADS)
+      val targetPiece1 = new SOCPossibleRoad(ourPlayerData, edge1, null);
+      negotiator.setTargetPiece(getOurPlayerNumber, targetPiece1)
+      client.buildRequest(game, SOCPlayingPiece.ROAD)
+      val targetPiece2 = new SOCPossibleRoad(ourPlayerData, edge2, null);
+      negotiator.setTargetPiece(getOurPlayerNumber, targetPiece2)
+      client.buildRequest(game, SOCPlayingPiece.ROAD)
   }
 
 

@@ -2,46 +2,42 @@ package game
 
 import soc.game._
 
-trait SOCState {
-  def getStateArray: List[Double]
-}
-
 case class GameState(player: SOCPlayer,
                      game: SOCGame,
                      board: BoardState,
                      bank: BankState,
                      devCardsDeck: Int,
                      players: List[PlayerState],
+                     possibleHands: PossibleHands,
                      canPlayDevCards: Boolean = true,
                      canRollDice: Boolean = true,
                      transactions: List[SOCTransactions]
-                   ) extends SOCState {
+                   ) {
 
-  lazy val playersPossibleHandMap = players.map(p => p.position -> p.probableResourcesTree).toMap
+  def getStateArray: List[Double] = {
+    val probableResourceSets = possibleHands.toProbableResourceSets
 
-  val levelNum = transactions.length + 1
-
-
-  override def getStateArray: List[Double] =
-    List(board.getStateArray, bank.getStateArray, List(devCardsDeck)).flatten ::: players.flatMap(_.getStateArray)
+    List(board.getStateArray, bank.getStateArray, List(devCardsDeck.toDouble)).flatten :::
+      players.flatMap(p => p.getStateArray(probableResourceSets(p.position)))
+  }
 }
 
 case class Hex(node: Int, res: Int, number: Option[Int])
 
-case class BoardState(hexes: Map[Int, Hex], robberNode: Int, ports: List[Int]) extends SOCState {
-  override def getStateArray: List[Double] =
+case class BoardState(hexes: Map[Int, Hex], robberNode: Int, ports: List[Int])  {
+  def getStateArray: List[Double] =
     hexes.values.flatMap( hex => List(hex.node.toDouble, hex.number.getOrElse(0).toDouble)).toList :::
       ports.map(_.toDouble) :::
-      List(robberNode)
+      List(robberNode.toDouble)
 }
 
-case class BankState(resourceSet: SOCResourceSet) extends SOCState {
-  override def getStateArray: List[Double] = {
-    resourceSet.getAmount(SOCResourceConstants.CLAY) ::
-      resourceSet.getAmount(SOCResourceConstants.ORE) ::
-      resourceSet.getAmount(SOCResourceConstants.SHEEP) ::
-      resourceSet.getAmount(SOCResourceConstants.WHEAT) ::
-      resourceSet.getAmount(SOCResourceConstants.WOOD) :: Nil
+case class BankState(resourceSet: SOCResourceSet)  {
+  def getStateArray: List[Double] = {
+    resourceSet.getAmount(SOCResourceConstants.CLAY).toDouble ::
+      resourceSet.getAmount(SOCResourceConstants.ORE).toDouble ::
+      resourceSet.getAmount(SOCResourceConstants.SHEEP).toDouble ::
+      resourceSet.getAmount(SOCResourceConstants.WHEAT).toDouble ::
+      resourceSet.getAmount(SOCResourceConstants.WOOD).toDouble :: Nil
   }
 }
 
@@ -49,7 +45,7 @@ object GameState {
 
   def apply(game: SOCGame,
             currentPlayer: SOCPlayer,
-            playerProbableHandMap: Map[Int, MutableSOCResourceSetTree],
+            possibleHands: PossibleHands,
             transactions: List[SOCTransactions]
            ): GameState = {
     val socBoard = game.getBoard
@@ -101,7 +97,6 @@ object GameState {
       PlayerState(
         name = player.getName,
         position = player.getPlayerNumber,
-        probableResourcesTree = playerProbableHandMap(player.getPlayerNumber),
         boardPoints = player.getSettlements.size + player.getCities.size,
         armyPoints = if(player.hasLargestArmy) 2 else 0,
         roadPoints = if(player.hasLongestRoad) 2 else 0,
@@ -122,7 +117,7 @@ object GameState {
     val canPlayDevCard = !currentPlayer.hasPlayedDevCard
     val canRollDice = game.canRollDice(currentPlayer.getPlayerNumber)
 
-    GameState(currentPlayer, game, board, bank, devCardsDeck, players, canPlayDevCard, canRollDice, transactions)
+    GameState(currentPlayer, game, board, bank, devCardsDeck, players, possibleHands, canPlayDevCard, canRollDice, transactions)
   }
 
   def getPossibleInitialPlacements(player: SOCPlayer, board: SOCBoard): List[InitialPlacement] = {
@@ -341,10 +336,7 @@ object GameState {
       Gain(player.position, actualResForPlayers.getOrElse(player, SOCResourceSet.EMPTY_SET))
     }
 
-    val newHandMap = SOCPossibleHandTree.calculateHands(state.playersPossibleHandMap, transactions, state.levelNum)
-    val players = state.players.map { player =>
-      player.copy(probableResourcesTree = newHandMap(player.position))
-    }
+    val possibleHands = SOCPossibleHands.calculateHands(state.possibleHands, transactions)
 
     val updatedBank = {
       val bnk = BankState(new SOCResourceSet(state.bank.resourceSet))
@@ -354,7 +346,7 @@ object GameState {
 
     state.copy(
       bank = updatedBank,
-      players = players,
+      possibleHands = possibleHands,
       canRollDice = false,
       transactions = state.transactions ::: transactions
     )
@@ -369,7 +361,7 @@ object GameState {
     * @param cardsLost which players lost which cards
     */
   def roll7(state: GameState,
-            cardsLostMap: Map[PlayerState, DiscardResources],
+            cardsLostMap: Map[Int, DiscardResources],
             robberLocation: Int,
             steal: Option[Steal]): GameState = {
     val currentPlayer = state.players.head
@@ -379,19 +371,16 @@ object GameState {
 
     val transactions = List(
       cardsLostMap.map { case (player, discard) =>
-        Lose(player.position, discard.resourceSet)
+        Lose(player, discard.resourceSet)
       }.toList,
       steal.map(List(_)).getOrElse(Nil)
     ).flatten
 
-    val newHandMap = SOCPossibleHandTree.calculateHands(state.playersPossibleHandMap, transactions, state.levelNum)
-    val players = state.players.map { player =>
-      player.copy(probableResourcesTree = newHandMap(player.position))
-    }
+    val possibleHands = SOCPossibleHands.calculateHands(state.possibleHands, transactions)
 
     val updatedBank = {
       val bank = new SOCResourceSet(state.bank.resourceSet)
-      state.players.foreach(p => bank.add(cardsLost.getOrElse(p, SOCResourceSet.EMPTY_SET)))
+      state.players.foreach(p => bank.add(cardsLost.getOrElse(p.position, SOCResourceSet.EMPTY_SET)))
       BankState(bank)
     }
 
@@ -400,7 +389,7 @@ object GameState {
     state.copy(
       board = updatedBoard,
       bank = updatedBank,
-      players = players,
+      possibleHands = possibleHands,
       transactions = state.transactions ::: transactions
     )
   }
@@ -413,7 +402,7 @@ object GameState {
     val currentPlayer = state.players.head
     val board = state.game.getBoard
 
-    val updatedState = toBuild match {
+    val updatedState: GameState = toBuild match {
       case BuildSettlement(node) =>
         val player = currentPlayer.copy (
           settlementNodes = currentPlayer.settlementNodes ::: List(node),
@@ -479,10 +468,7 @@ object GameState {
     }
 
     val transactions = List(Lose(currentPlayer.position, cost))
-    val newHandMap = SOCPossibleHandTree.calculateHands(updatedState.playersPossibleHandMap, transactions, state.levelNum)
-    val players = updatedState.players.map { player =>
-      player.copy(probableResourcesTree = newHandMap(player.position))
-    }
+    val possibleHands = SOCPossibleHands.calculateHands(updatedState.possibleHands, transactions)
 
     val bank = {
       val bank = new SOCResourceSet(updatedState.bank.resourceSet)
@@ -491,7 +477,7 @@ object GameState {
     }
 
     updatedState.copy(
-      players = players,
+      possibleHands = possibleHands,
       bank = bank
     )
   }
@@ -500,17 +486,17 @@ object GameState {
     val currentPlayer = state.players.head
 
     val playedDevCardState: GameState = dCard match {
-      case Knight(robber) =>
+      case Knight(robberLocationsAndSteal) =>
 
         val updatedBoard = state.board//.moveRobber(robberLocation)
 
         val playersLA = {
           val numKnightsCurPlayer = currentPlayer.numKnights + 1
-          val currentLAOpt = state.players.filter(_.numKnights >= 3).sortWith(_.numKnights > _.numKnights).headOption
+          val currentLAOpt = state.players.find(_.armyPoints >= 2)
 
           val playerLostArmy: Option[PlayerState] = currentLAOpt match {
             case Some(player) if player == currentPlayer => None
-            case Some(player) if numKnightsCurPlayer >= player.numKnights => Some(player)
+            case Some(player) if numKnightsCurPlayer > player.numKnights => Some(player)
             case None => None
           }
           val updatedCurrentPlayer = (playerLostArmy match {
@@ -546,10 +532,7 @@ object GameState {
         resourceSet.add(1, res2)
 
         val transactions = List(Gain(currentPlayer.position, resourceSet))
-        val newHandMap = SOCPossibleHandTree.calculateHands(state.playersPossibleHandMap, transactions, state.levelNum)
-        val players = state.players.map { player =>
-          player.copy(probableResourcesTree = newHandMap(player.position))
-        }
+        val possibleHands= SOCPossibleHands.calculateHands(state.possibleHands, transactions)
 
         val updatedBank = {
           val bank = new SOCResourceSet(state.bank.resourceSet)
@@ -558,18 +541,15 @@ object GameState {
         }
         state.copy(
           bank = updatedBank,
-          players = players,
+          possibleHands = possibleHands,
           transactions = state.transactions ::: transactions
         )
 
       case Monopoly(resource) => state
         val transactions = List(MonopolyTransaction(currentPlayer.position, resource))
-        val newHandMap = SOCPossibleHandTree.calculateHands(state.playersPossibleHandMap, transactions, state.levelNum)
-        val players = state.players.map { player =>
-          player.copy(probableResourcesTree = newHandMap(player.position))
-        }
+        val possibleHands = SOCPossibleHands.calculateHands(state.possibleHands, transactions)
         state.copy(
-          players = players,
+          possibleHands = possibleHands,
           transactions = state.transactions ::: transactions
         )
 
@@ -591,13 +571,10 @@ object GameState {
       Gain(trade.player, trade.from)
     )
 
-    val newHandMap = SOCPossibleHandTree.calculateHands(state.playersPossibleHandMap, transactions, state.levelNum)
-    val players = state.players.map { player =>
-      player.copy(probableResourcesTree = newHandMap(player.position))
-    }
+    val possibleHands = SOCPossibleHands.calculateHands(state.possibleHands, transactions)
 
     state.copy(
-      players = players,
+      possibleHands = possibleHands,
       transactions = state.transactions ::: transactions
     )
 
@@ -617,14 +594,11 @@ object GameState {
       Lose(currentPlayer.position, portTrade.from),
       Gain(currentPlayer.position, portTrade.to)
     )
-    val newHandMap = SOCPossibleHandTree.calculateHands(state.playersPossibleHandMap, transactions, state.levelNum)
-    val players = state.players.map { player =>
-      player.copy(probableResourcesTree = newHandMap(player.position))
-    }
+    val possibleHands = SOCPossibleHands.calculateHands(state.possibleHands, transactions)
 
     state.copy (
       bank = updatedBank,
-      players = players,
+      possibleHands = possibleHands,
       transactions = state.transactions ::: transactions
     )
   }

@@ -6,7 +6,6 @@ import soc.game._
 case class PlayerState(name: String,
                        position: Int,
                        //currentKnownResources: SOCResourceSet = SOCResourceSet.EMPTY_SET,
-                       probableResourcesTree: MutableSOCResourceSetTree,
                        boardPoints: Int = 0,
                        armyPoints: Int = 0,
                        roadPoints: Int = 0,
@@ -33,45 +32,46 @@ case class PlayerState(name: String,
 //                       numTrades: Int = 0,
 //                       resTradedInTrade: SOCResourceSet  = SOCResourceSet.EMPTY_SET,
 //                       resReceivedTrade: SOCResourceSet  = SOCResourceSet.EMPTY_SET,
-                      ) extends SOCState {
+                      ) {
 
 
 
   def points = boardPoints + devPoints+ armyPoints + roadPoints
 
-//  def collectedResourceFromRoll(resourceSet: SOCResourceSet): PlayerState = {
-//    val c = copy(
-//      currentKnownResources = new SOCResourceSet(currentKnownResources)
-//    )
-//    c.currentKnownResources.add(resourceSet)
-//    c
-//
-//  }
 
-  override def getStateArray: List[Double] = {
-    val probableResourceSet =  probableResourcesTree.toProbableResourceSet
-    position ::
-      probableResourceSet.getTotal ::
-      probableResourceSet.known.getAmount(SOCResourceConstants.CLAY) ::
+  def getStateArray(probableResourceSet: ProbableResourceSet): List[Double] = {
+    position.toDouble ::
+      probableResourceSet.getTotal.toDouble ::
+      probableResourceSet.getKnown.getAmount(SOCResourceConstants.CLAY).toDouble ::
       probableResourceSet.unknown.getAmount(SOCResourceConstants.CLAY) ::
-      probableResourceSet.known.getAmount(SOCResourceConstants.ORE) ::
+      probableResourceSet.getKnown.getAmount(SOCResourceConstants.ORE).toDouble ::
       probableResourceSet.unknown.getAmount(SOCResourceConstants.ORE) ::
-      probableResourceSet.known.getAmount(SOCResourceConstants.SHEEP) ::
+      probableResourceSet.getKnown.getAmount(SOCResourceConstants.SHEEP).toDouble ::
       probableResourceSet.unknown.getAmount(SOCResourceConstants.SHEEP) ::
-      probableResourceSet.known.getAmount(SOCResourceConstants.WHEAT) ::
+      probableResourceSet.getKnown.getAmount(SOCResourceConstants.WHEAT).toDouble ::
       probableResourceSet.unknown.getAmount(SOCResourceConstants.WHEAT) ::
-      probableResourceSet.known.getAmount(SOCResourceConstants.WOOD) ::
+      probableResourceSet.getKnown.getAmount(SOCResourceConstants.WOOD).toDouble ::
       probableResourceSet.unknown.getAmount(SOCResourceConstants.WOOD) ::
-      dots.getAmount(SOCResourceConstants.CLAY) ::
-      dots.getAmount(SOCResourceConstants.ORE) ::
-      dots.getAmount(SOCResourceConstants.SHEEP) ::
-      dots.getAmount(SOCResourceConstants.WHEAT) ::
-      dots.getAmount(SOCResourceConstants.WOOD) ::
-      points :: boardPoints :: armyPoints :: roadPoints :: devPoints ::
-      playedDCards :: playableDCards :: newCards ::  roadLength :: numKnights ::
-      (ports.toList ::: (1 to (6 - ports.size)).map(_ => 0).toList) :::
-      (settlementNodes ::: (1 to (5 - settlementNodes.size)).map(_ => 0).toList) :::
-      (cityNodes ::: (1 to (4 - cityNodes.size)).map(_ => 0).toList) :::
-      (roadEdges ::: (1 to (15 - roadEdges.size)).map(_ => 0).toList) ::: Nil
+      dots.getAmount(SOCResourceConstants.CLAY).toDouble ::
+      dots.getAmount(SOCResourceConstants.ORE).toDouble ::
+      dots.getAmount(SOCResourceConstants.SHEEP).toDouble ::
+      dots.getAmount(SOCResourceConstants.WHEAT).toDouble ::
+      dots.getAmount(SOCResourceConstants.WOOD).toDouble ::
+      points.toDouble :: boardPoints.toDouble :: armyPoints.toDouble ::
+      roadPoints.toDouble :: devPoints.toDouble ::
+      playedDCards.toDouble :: playableDCards.toDouble :: newCards.toDouble ::
+      roadLength.toDouble :: numKnights.toDouble ::
+      (if (ports.contains(SOCBoard.CLAY_PORT)) 1.0 else 0.0) ::
+      (if (ports.contains(SOCBoard.ORE_PORT)) 1.0 else 0.0) ::
+      (if (ports.contains(SOCBoard.SHEEP_PORT)) 1.0 else 0.0) ::
+      (if (ports.contains(SOCBoard.WHEAT_PORT)) 1.0 else 0.0) ::
+      (if (ports.contains(SOCBoard.WOOD_PORT)) 1.0 else 0.0) ::
+      (if (ports.contains(SOCBoard.MISC_PORT)) 1.0 else 0.0) ::
+      (if (ports.contains(SOCBoard.MISC_PORT)) 1.0 else 0.0) ::
+      (if (ports.contains(SOCBoard.MISC_PORT)) 1.0 else 0.0) ::
+      (if (ports.contains(SOCBoard.MISC_PORT)) 1.0 else 0.0) ::
+      (settlementNodes.map(_.toDouble) ::: (1 to (5 - settlementNodes.size)).map(_ => 0.0).toList) :::
+      (cityNodes.map(_.toDouble) ::: (1 to (4 - cityNodes.size)).map(_ => 0.0).toList) :::
+      (roadEdges.map(_.toDouble) ::: (1 to (15 - roadEdges.size)).map(_ => 0.0).toList) ::: Nil
   }
 }

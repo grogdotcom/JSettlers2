@@ -34,13 +34,9 @@ case class UnknownResources(cl: Double = 0, or: Double = 0, sh: Double = 0, wh: 
   }
 }
 
-case class ProbableResourceSet(known: SOCResourceSet, unknown: UnknownResources) extends ResourceSet{
+case class ProbableResourceSet(private val known: SOCResourceSet, unknown: UnknownResources) extends ResourceSet{
 
-//  private def doubleSplit(d: Double): (Int, Double) = {
-//    val int = d.floor.toInt
-//    val dub = d - int
-//    (int, dub)
-//  }
+  def getKnown = new SOCResourceSet(known)
 
   def getTotalProbableAmount(resourceType: Int): Double = getAmount(resourceType) + getProbableAmount(resourceType)
 
@@ -117,119 +113,10 @@ case class ProbableResourceSet(known: SOCResourceSet, unknown: UnknownResources)
   def copy(known: SOCResourceSet = known, unknown: UnknownResources = unknown): ProbableResourceSet = {
     ProbableResourceSet(new SOCResourceSet(known), unknown.copy())
   }
-
 }
 
 object ProbableResourceSet {
-
-  val resTypes = (1 to 5)
-
-  def apply(known: SOCResourceSet): ProbableResourceSet  = ProbableResourceSet(known, UnknownResources())
-  def apply(cl: Int = 0, or: Int = 0, sh: Int = 0, wh: Int = 0, wo: Int = 0): ProbableResourceSet = apply(new SOCResourceSet(cl, or, sh, wh, wo, 0))
-
-  def takeUnknown(from: ProbableResourceSet, to: ProbableResourceSet): (ProbableResourceSet, ProbableResourceSet) = {
-    val fromKnown = new SOCResourceSet(from.known)
-    var fromUnknown = from.unknown.copy()
-    val fromTotal = from.getTotal
-
-    val toKnown = new SOCResourceSet(to.known)
-    var toUnknown = to.unknown.copy()
-
-    resTypes.foreach { res =>
-      val amount = from.getTotalProbableAmount(res)
-      if (from.known.contains(res)) {
-        fromKnown.subtract(1, res)
-        fromUnknown = fromUnknown.add(1, res)
-      }
-      val amt = amount / fromTotal.toDouble
-      fromUnknown = fromUnknown.subtract(amt, res)
-      toUnknown = toUnknown.add(amt, res)
-    }
-    (new ProbableResourceSet(fromKnown, fromUnknown), new ProbableResourceSet(toKnown, toUnknown))
-  }
-
-  def undoSteal(from: ProbableResourceSet, to: ProbableResourceSet): (ProbableResourceSet, ProbableResourceSet) = {
-
-
-    resTypes.foreach { res =>
-
-
-    }
-    null
-  }
-
-  def calculateProbableResources(transactions: List[SOCTransactions]): Map[Int, ProbableResourceSet] = {
-    val transactionsWithIndex = transactions.zipWithIndex
-    val nonStealTransactions = transactionsWithIndex.filterNot(_._1.isInstanceOf[Steal])
-    val stealTransactions = transactionsWithIndex.filter(_._1.isInstanceOf[Steal])
-
-    val gained = (0 to 3).map{ player =>
-      player -> new SOCResourceSet()
-    }.toMap
-    val lost = (0 to 3).map{ player =>
-      player -> new SOCResourceSet()
-    }.toMap
-    val nonStealResources = (0 to 3).map{ player =>
-      player -> new SOCResourceSet()
-    }.toMap
-    var lastEvaluation = -1
-    nonStealTransactions.foreach {
-      case (Gain(player, set), i) =>
-        nonStealResources(player).add(set)
-        gained(player).add(set)
-      case (Steal(robber, victim, resOpt), i) => resOpt match {
-        case Some(resourceSet) =>
-          nonStealResources(robber).add(resourceSet)
-          gained(robber).add(resourceSet)
-          nonStealResources(victim).subtract(resourceSet)
-          lost(victim).subtract(resourceSet)
-        case _ => ()
-      }
-
-       case (Lose(player, set), i) =>
-        lost(player).add(set)
-        if (nonStealResources(player).contains(set)) nonStealResources(player).subtract(set)
-        else { //player stole resource and did not collect from roll or card
-          val overFlow = new SOCResourceSet(set)
-          overFlow.subtract(nonStealResources(player))
-          println(ProbableResourceSet(overFlow))
-        }
-    }
-    null
-  }
+  val resTypes = (1 to 5).toList
 }
 
-object Tester extends App {
-  val transactions = List(
-    Gain(1, new SOCResourceSet(1, 3, 2, 0, 2, 0)),
-    Steal(2, 1, None),
-    Lose(1, new SOCResourceSet (2, 0, 0, 1, 1, 0))
-  )
-  ProbableResourceSet.calculateProbableResources(transactions)
-
-
-
-
-
-
-//  val from = ProbableResourceSet(wo = 3, cl = 1)
-//  val to = ProbableResourceSet(wo = 2, or = 2)
-//  val (from2, to2) = ProbableResourceSet.takeUnknown(from, to)
-//  println(s"from: $from")
-//  println(s"to: $to")
-//  println()
-//  println(s"from2: $from2")
-//  println(s"to2: $to2")
-//  val(to3, from3) = ProbableResourceSet.takeUnknown(to2, from2)
-//  println()
-//  println(s"from3: $from3")
-//  println(s"to3: $to3")
-}
-
-sealed trait SOCTransactions
-
-case class Gain(player: Int, resourceSet: SOCResourceSet) extends SOCTransactions
-case class Lose(player: Int, resourceSet: SOCResourceSet) extends SOCTransactions
-case class Steal(robber: Int, victim: Int, resourceSet: Option[SOCResourceSet]) extends SOCTransactions
-case class MonopolyTransaction(player: Int, resourceType: Int) extends SOCTransactions
 
