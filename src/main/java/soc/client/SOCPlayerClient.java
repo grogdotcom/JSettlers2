@@ -872,7 +872,7 @@ public class SOCPlayerClient
      */
     public static void usage()
     {
-        System.err.println("usage: java soc.client.SOCPlayerClient [<host> <port>]");
+        System.err.println("usage: java [-D ...=...] -jar JSettlers.jar [<host> <port>]");
     }
 
     /**
