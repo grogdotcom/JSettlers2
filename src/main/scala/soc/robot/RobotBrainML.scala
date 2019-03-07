@@ -6,7 +6,7 @@ import soc.game._
 import soc.message._
 import soc.util.{CappedQueue, SOCRobotParameters}
 
-class RLRobotBrain(rc: SOCRobotClient,
+class RobotBrainML(rc: SOCRobotClient,
                    params: SOCRobotParameters,
                    ga: SOCGame,
                    mq: CappedQueue[SOCMessage]
@@ -26,15 +26,15 @@ class RLRobotBrain(rc: SOCRobotClient,
       client.choosePlayer(game, choicePl.getOrElse(-1))
     case BuyDevelopmentCard => client.buyDevCard(game)
     case BuildSettlement(node) =>
-      val targetPiece = new SOCPossibleSettlement(ourPlayerData, node, null);
+      val targetPiece = new SOCPossibleSettlement(ourPlayerData, node, null)
       negotiator.setTargetPiece(getOurPlayerNumber, targetPiece)
       client.buildRequest(game, SOCPlayingPiece.SETTLEMENT)
     case BuildCity(node) =>
-      val targetPiece = new SOCPossibleCity(ourPlayerData, node);
+      val targetPiece = new SOCPossibleCity(ourPlayerData, node)
       negotiator.setTargetPiece(getOurPlayerNumber, targetPiece)
       client.buildRequest(game, SOCPlayingPiece.CITY)
     case BuildRoad(edge) =>
-      val targetPiece = new SOCPossibleRoad(ourPlayerData, edge, null);
+      val targetPiece = new SOCPossibleRoad(ourPlayerData, edge, null)
       negotiator.setTargetPiece(getOurPlayerNumber, targetPiece)
       client.buildRequest(game, SOCPlayingPiece.ROAD)
     case PortTrade(give, get) => client.bankTrade(game, give, get)
@@ -64,7 +64,7 @@ class RLRobotBrain(rc: SOCRobotClient,
 
 
 
-  /*override def run: Unit = {
+  override def run: Unit = {
     //Thread name for debug
     try
       Thread.currentThread.setName("robo tBrain-" + client.getNickname + "-" + game.getName)
@@ -319,6 +319,6 @@ class RLRobotBrain(rc: SOCRobotClient,
 
     }
 
-  }*/
+  }
 
 }

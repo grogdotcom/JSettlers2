@@ -93,11 +93,7 @@ case class PossibleHands(hands: Seq[Map[Int, Hand]]) {
 object SOCPossibleHands {
 
   val emptyHands = PossibleHands {
-    Seq{
-      (0 to 3).map { i =>
-        i -> Hand(new SOCResourceSet)
-      }.toMap
-    }
+    Seq((0 to 3).map (_ -> Hand(new SOCResourceSet)).toMap)
   }
 
   @tailrec

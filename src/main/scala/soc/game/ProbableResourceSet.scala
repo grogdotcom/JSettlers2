@@ -107,6 +107,10 @@ case class ProbableResourceSet(private val known: SOCResourceSet, unknown: Unkno
   def mightContain(other: ResourceSet): Boolean = ProbableResourceSet.resTypes.forall { res => getTotalProbableAmount(res).ceil >= other.getAmount(res) }
 
   override def toString: String = ProbableResourceSet.resTypes.filter(getTotalProbableAmount(_) > 0).map { res =>
+    s"${SOCResourceConstants.resName(res)}= ${known.getAmount(res)}:${unknown.getAmount(res)}"
+  }.mkString(", ")
+
+  def knownWithProbabilityUnknown: String = ProbableResourceSet.resTypes.filter(getTotalProbableAmount(_) > 0).map { res =>
     s"${SOCResourceConstants.resName(res)}= ${getAmount(res) + (if(getUnknownTotal > 0) getProbableAmount(res) / getUnknownTotal else 0)}"
   }.mkString(", ")
 
