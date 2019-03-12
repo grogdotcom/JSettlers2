@@ -198,6 +198,11 @@ import soc.util.Version;
         bpContainer.setBackground(null);  // inherit from parent
         bpContainer.setForeground(null);
 
+        /**
+         * JButton.setBackground(null) is needed on win32 to avoid gray corners
+         */
+        final boolean isPlatformWindows = SOCPlayerClient.IS_PLATFORM_WINDOWS;
+
         // In center of bpContainer, bp holds the narrow UI stack:
         final JPanel bp = new BoxedJPanel();
         bp.setLayout(new BoxLayout(bp, BoxLayout.Y_AXIS));
@@ -227,7 +232,8 @@ import soc.util.Version;
          */
 
         connserv = new JButton(strings.get("pcli.cpp.connecttoaserv"));  // "Connect to a Server"
-        connserv.setBackground(null);  // needed on win32 to avoid gray corners
+        if (isPlatformWindows)
+            connserv.setBackground(null);
         gbl.setConstraints(connserv, gbc);
         modeButtonsContainer.add(connserv);
         connserv.addActionListener(this);
@@ -236,7 +242,8 @@ import soc.util.Version;
          * Interface setup: Practice
          */
         prac = new JButton(strings.get("pcli.main.practice"));  // "Practice" - same as SOCPlayerClient button
-        prac.setBackground(null);
+        if (isPlatformWindows)
+            prac.setBackground(null);
         gbl.setConstraints(prac, gbc);
         modeButtonsContainer.add(prac);
         prac.addActionListener(this);
@@ -245,7 +252,8 @@ import soc.util.Version;
          * Interface setup: Start a Server
          */
         runserv = new JButton(strings.get("pcli.cpp.startserv"));  // "Start a Server"
-        runserv.setBackground(null);
+        if (isPlatformWindows)
+            runserv.setBackground(null);
         gbl.setConstraints(runserv, gbc);
         if (! canLaunchServer)
             runserv.setEnabled(false);
@@ -364,7 +372,8 @@ import soc.util.Version;
         gbl.setConstraints(L, gbc);
         pconn.add(L);
         conn_connect = new JButton(strings.get("pcli.cpp.connect"));
-        conn_connect.setBackground(null);
+        if (SOCPlayerClient.IS_PLATFORM_WINDOWS)
+            conn_connect.setBackground(null);
         conn_connect.addActionListener(this);
         conn_connect.addKeyListener(this);  // for win32 keyboard-focus
         gbc.weightx = 0.5;
@@ -372,7 +381,8 @@ import soc.util.Version;
         pconn.add(conn_connect);
 
         conn_cancel = new JButton(strings.get("base.cancel"));
-        conn_cancel.setBackground(null);
+        if (SOCPlayerClient.IS_PLATFORM_WINDOWS)
+            conn_cancel.setBackground(null);
         conn_cancel.addActionListener(this);
         conn_cancel.addKeyListener(this);
         gbc.gridwidth = GridBagConstraints.REMAINDER;
@@ -448,7 +458,8 @@ import soc.util.Version;
         gbl.setConstraints(L, gbc);
         prun.add(L);
         run_startserv = new JButton(" " + strings.get("pcli.cpp.start") + " ");
-        run_startserv.setBackground(null);
+        if (SOCPlayerClient.IS_PLATFORM_WINDOWS)
+            run_startserv.setBackground(null);
         run_startserv.addActionListener(this);
         run_startserv.addKeyListener(this);  // for win32 keyboard-focus
         gbc.weightx = 0.5;
@@ -456,7 +467,8 @@ import soc.util.Version;
         prun.add(run_startserv);
 
         run_cancel = new JButton(strings.get("base.cancel"));
-        run_cancel.setBackground(null);
+        if (SOCPlayerClient.IS_PLATFORM_WINDOWS)
+            run_cancel.setBackground(null);
         run_cancel.addActionListener(this);
         run_cancel.addKeyListener(this);
         gbl.setConstraints(run_cancel, gbc);  // still with weightx = 0.5
