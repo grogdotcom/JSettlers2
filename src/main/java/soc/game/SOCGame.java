@@ -1274,6 +1274,7 @@ public class SOCGame implements Serializable, Cloneable
             hasSeaBoard = false;
             vp_winner = VP_WINNER_STANDARD;
             hasScenarioWinCondition = false;
+            bank = new SOCResourceSet(19, 19, 19, 19, 19, 0);
         }
 
         if (boardFactory == null)
