@@ -71,7 +71,7 @@ import java.util.Vector;
     public ChannelFrame(final String t, final MainDisplay md)
     {
         super(strings.get("channel.channel", t));
-        setBackground(SOCPlayerClient.JSETTLERS_BG_GREEN);
+        setBackground(SwingMainDisplay.JSETTLERS_BG_GREEN);
         setForeground(Color.BLACK);
 
         ta = new SnippingTextArea("", 100);
