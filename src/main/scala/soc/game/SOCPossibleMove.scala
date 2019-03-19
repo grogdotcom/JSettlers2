@@ -26,7 +26,7 @@ case class BuildSettlement(node: Int) extends SOCPossibleBuild
 case class BuildCity(node: Int) extends SOCPossibleBuild
 
 case class PortTrade(to: SOCResourceSet, from: SOCResourceSet) extends SOCPossibleTrade
-case class Trade(player: Int, to: SOCResourceSet, from: SOCResourceSet)  extends SOCPossibleTrade
+case class Trade(socTrade: SOCTradeOffer)  extends SOCPossibleTrade
 
 case class Knight(robber: RobberLocationsAndSteal) extends SOCPossibleDevCard
 case class YearOfPlenty(res1: Int, res2: Int) extends SOCPossibleDevCard
@@ -36,6 +36,7 @@ case object Point extends SOCPossibleDevCard
 
 case object AcceptTrade extends TradeResponse
 case object RejectTrade extends TradeResponse
+case class CounterTrade(trade: Trade) extends TradeResponse
 
 case class PlayersMove(player: Int, move: SOCPossibleMove)
 

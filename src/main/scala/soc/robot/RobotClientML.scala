@@ -16,17 +16,22 @@ import soc.util.{CappedQueue, SOCFeatureSet, SOCRobotParameters}
   */
 class RobotClientML(h: String, p: Int, nn: String, pw: String, co: String) extends SOCRobotClient(h, p, nn, pw, co) {
 
+  rbclass = "soc.robot.RobotBrainML"
+
   def this(s: String, nn: String, pw: String, co: String) = {
     this(null, 0, nn, pw, co)
     strSocketName = s
   }
 
-  protected val rbclass: String = "soc.robot.RobotBrainML"
-
   override def createBrain(params: SOCRobotParameters, ga: SOCGame, mq: CappedQueue[SOCMessage]) = new RobotBrainML(this, params, ga, mq)
 
   override def buildClientFeats: SOCFeatureSet = new SOCFeatureSet(false, false)
-
-
-
 }
+
+object RobotClientML {
+  def main(args: Array[String]): Unit = {
+    SOCRobotClient.main(args)
+  }
+}
+
+

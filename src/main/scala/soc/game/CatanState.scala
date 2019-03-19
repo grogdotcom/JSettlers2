@@ -9,9 +9,9 @@ case class GameState(player: SOCPlayer,
                      devCardsDeck: Int,
                      players: List[PlayerState],
                      possibleHands: PossibleHands,
-                     canPlayDevCards: Boolean = true,
+                     canPlayDevCard: Boolean = true,
                      canRollDice: Boolean = true,
-                     transactions: List[SOCTransactions]
+                     transactions: List[SOCTransactions] = Nil
                    ) {
 
   def getStateArray: List[Double] = {
@@ -44,9 +44,9 @@ case class BankState(resourceSet: SOCResourceSet)  {
 object GameState {
 
   def apply(game: SOCGame,
-            currentPlayer: SOCPlayer,
-            possibleHands: PossibleHands,
-            transactions: List[SOCTransactions]
+            curPlayerNumber: Int,
+            possibleHands: PossibleHands
+            //transactions: List[SOCTransactions]
            ): GameState = {
     val socBoard = game.getBoard
     val hexes = socBoard.getHexLayout.toList.map { coord =>
@@ -65,9 +65,9 @@ object GameState {
     val board = BoardState(hexes, robberHex, ports)
     val bank = BankState(new SOCResourceSet(game.getBank))
     val devCardsDeck = game.getNumDevCards
+    val currentPlayer = game.getPlayer(curPlayerNumber)
 
     val playerList: Seq[SOCPlayer] = game.getPlayers.toList
-    val curPlayerNumber = currentPlayer.getPlayerNumber
     val players = List(
       currentPlayer,
       playerList.find(_.getPlayerNumber == (curPlayerNumber + 1) % playerList.length).get,
@@ -114,10 +114,12 @@ object GameState {
       )
     }
 
+
+
     val canPlayDevCard = !currentPlayer.hasPlayedDevCard
     val canRollDice = game.canRollDice(currentPlayer.getPlayerNumber)
 
-    GameState(currentPlayer, game, board, bank, devCardsDeck, players, possibleHands, canPlayDevCard, canRollDice, transactions)
+    GameState(currentPlayer, game, board, bank, devCardsDeck, players, possibleHands, canPlayDevCard, canRollDice)
   }
 
   def getPossibleInitialPlacements(player: SOCPlayer, board: SOCBoard): List[InitialPlacement] = {
@@ -200,7 +202,7 @@ object GameState {
     }
   }.toList
 
-  def getPossibleDiscards(player: SOCPlayer): List[DiscardResources] = {
+  def getPossibleDiscards(player: SOCPlayer, numToDiscard: Int): List[DiscardResources] = {
 
     case class MiniResourceSet(resourceSet: SOCResourceSet = new SOCResourceSet()) {
       def add(res: Int): MiniResourceSet = {
@@ -217,7 +219,6 @@ object GameState {
     }
 
     val ourResources = MiniResourceSet(player.getResources)
-    val numToDiscard = ourResources.getTotal / 2
 
     val resources = (1 to 5)
     var stack = List((MiniResourceSet(), ourResources))
@@ -276,14 +277,20 @@ object GameState {
     knight ::: monopoly ::: yearOfPlenty ::: roads
   }
 
+  def getPossibleTradeResponses(trade: Trade, player: SOCPlayer, game: SOCGame): List[TradeResponse] = {
+    AcceptTrade :: RejectTrade :: Nil
+    // ::: getPossibleTradesWithPlayer(toTrade, player, game).map(CounterOffer(_))
+  }
+
   def getPossibleMovesForState(state: GameState): List[SOCPossibleMove] = {
 
-    val devCardMoves = if (state.canPlayDevCards) {
+    val devCardMoves = if (state.canPlayDevCard) {
       getPossibleDevelopmentCard(state.player, state.game)
     } else Nil
 
     val beforeOrAfterDiceMoves = if (state.canRollDice) List(RollDice)
     else {
+      EndTurn ::
       getPossibleBuilds(state.player) :::
       getPossiblePortTrades(state.player)
       //getPossibleTrades(state.player, state.game)
@@ -557,7 +564,7 @@ object GameState {
       case _ => state
     }
     playedDevCardState.copy(
-      canPlayDevCards = false,
+      canPlayDevCard = false,
     )
   }
 
@@ -565,10 +572,10 @@ object GameState {
     val currentPlayer = state.players.head
 
     val transactions = List(
-      Lose(currentPlayer.position, trade.from),
-      Lose(trade.player, trade.to),
-      Gain(currentPlayer.position, trade.to),
-      Gain(trade.player, trade.from)
+      Lose(currentPlayer.position, trade.socTrade.getGiveSet),
+      Lose(trade.socTrade.getFrom, trade.socTrade.getGetSet),
+      Gain(currentPlayer.position, trade.socTrade.getGetSet),
+      Gain(trade.socTrade.getFrom, trade.socTrade.getGiveSet)
     )
 
     val possibleHands = SOCPossibleHands.calculateHands(state.possibleHands, transactions)

@@ -6,6 +6,8 @@ import soc.game._
 import soc.message._
 import soc.util.{CappedQueue, SOCRobotParameters}
 
+import scala.util.Random
+
 class RobotBrainML(rc: SOCRobotClient,
                    params: SOCRobotParameters,
                    ga: SOCGame,
@@ -14,43 +16,63 @@ class RobotBrainML(rc: SOCRobotClient,
 
   val possibleHands = SOCPossibleHands.emptyHands
 
+  var counterOffer: Option[Trade] = None
+  var moveAndSteal: Option[RobberLocationsAndSteal] = None
+  var monopolyChoice: Option[Int] = None
+
   //Temporary!! Anything with two steps probably needs to be done seperately
   def doMove(move: SOCPossibleMove): Unit = move match {
-    case RollDice => client.rollDice(game)
-    case EndTurn => client.endTurn(game)
+    case RollDice =>
+      expectDICERESULT = true
+      counter = 0
+      client.rollDice(game)
+    case EndTurn =>
+      waitingForGameState = true
+      counter = 0
+      expectROLL_OR_CARD = true
+      waitingForOurTurn = true
+
+      doneTrading = robotParameters.getTradeFlag != 1
+      client.endTurn(game)
     case InitialPlacement(settlementNode, roadEdge) =>
       client.putPiece(game, new SOCSettlement(ourPlayerData, settlementNode, null)) //Phase1A
       client.putPiece(game, new SOCRoad(ourPlayerData, roadEdge, null))             //Phase 1B
     case RobberLocationsAndSteal(bestHex, choicePl) =>
+      moveAndSteal = Some(RobberLocationsAndSteal(bestHex, choicePl))
+
       client.moveRobber(game, ourPlayerData, bestHex)
-      client.choosePlayer(game, choicePl.getOrElse(-1))
     case BuyDevelopmentCard => client.buyDevCard(game)
     case BuildSettlement(node) =>
-      val targetPiece = new SOCPossibleSettlement(ourPlayerData, node, null)
-      negotiator.setTargetPiece(getOurPlayerNumber, targetPiece)
+      whatWeWantToBuild = new SOCSettlement(ourPlayerData, node, game.getBoard)
       client.buildRequest(game, SOCPlayingPiece.SETTLEMENT)
     case BuildCity(node) =>
-      val targetPiece = new SOCPossibleCity(ourPlayerData, node)
-      negotiator.setTargetPiece(getOurPlayerNumber, targetPiece)
+      whatWeWantToBuild = new SOCCity(ourPlayerData, node, game.getBoard)
       client.buildRequest(game, SOCPlayingPiece.CITY)
     case BuildRoad(edge) =>
-      val targetPiece = new SOCPossibleRoad(ourPlayerData, edge, null)
-      negotiator.setTargetPiece(getOurPlayerNumber, targetPiece)
+      whatWeWantToBuild = new SOCRoad(ourPlayerData, edge, game.getBoard)
       client.buildRequest(game, SOCPlayingPiece.ROAD)
     case PortTrade(give, get) => client.bankTrade(game, give, get)
-    case Trade(to, give, get) => ()
+    case Trade(offer) => ()
     case Knight(robber) =>
-      client.moveRobber(game, ourPlayerData, robber.node)
-      client.choosePlayer(game, robber.playerStole.getOrElse(-1))
+      expectPLACING_ROBBER = true
+      waitingForGameState = true
+      counter = 0
+      moveAndSteal = Some(robber)
+
+      client.playDevCard(game, SOCDevCardConstants.KNIGHT)
+//      client.moveRobber(game, ourPlayerData, robber.node)
+//      client.choosePlayer(game, robber.playerStole.getOrElse(-1))
     case YearOfPlenty(res1, res2) =>
       val resources = new SOCResourceSet()
       resources.add(1, res1)
       resources.add(1, res2)
+      resourceChoices = resources
+
       client.playDevCard(game, SOCDevCardConstants.DISC)
-      client.pickResources(game, resources)
     case Monopoly(res) =>
+      monopolyChoice = Some(res)
+
       client.playDevCard(game, SOCDevCardConstants.MONO)
-      client.pickResourceType(game, res)
     case RoadBuilder(edge1, edge2) =>
       client.playDevCard(game, SOCDevCardConstants.ROADS)
       val targetPiece1 = new SOCPossibleRoad(ourPlayerData, edge1, null);
@@ -62,8 +84,84 @@ class RobotBrainML(rc: SOCRobotClient,
   }
 
 
+  def selectBestMove(moves: List[SOCPossibleMove]): SOCPossibleMove = moves(rand.nextInt(moves.length))
+
+  override def considerOffer(offer: SOCTradeOffer): Int = {
+    var response = SOCRobotNegotiator.IGNORE_OFFER
+    val offeringPlayer = game.getPlayer(offer.getFrom)
+    if ((offeringPlayer.getCurrentOffer != null) && offer == offeringPlayer.getCurrentOffer) {
+      val offeredTo = offer.getTo
+      if (offeredTo(getOurPlayerNumber)) {
+        val trade = Trade(offer)
+        val moves = GameState.getPossibleTradeResponses(trade, getOurPlayerData, getGame)
+        response = selectBestMove(moves) match {
+          case AcceptTrade => SOCRobotNegotiator.ACCEPT_OFFER
+          case RejectTrade => SOCRobotNegotiator.REJECT_OFFER
+          case CounterTrade(counter) =>
+            counterOffer = Some(counter)
+            SOCRobotNegotiator.COUNTER_OFFER
+        }
+      }
+    }
+    response
+  }
+
+  override def makeCounterOffer(offer: SOCTradeOffer): Boolean = {
+    counterOffer match {
+      case Some(Trade(offer)) =>
+        getOurPlayerData.setCurrentOffer(offer)
+        offerRejections(offer.getFrom) = false
+        waitingForTradeResponse = true
+        counter = 0
+        client.offerTrade(game, offer)
+        true
+      case None =>
+        getOurPlayerData.setCurrentOffer(null)
+        doneTrading = true
+        waitingForTradeResponse = false
+        false
+    }
+  }
+
+  override def rollOrPlayCard(): Unit = doActionsOnTurn
+
+  override def moveRobber(): Unit = {
+    val bestHex = moveAndSteal.map(_.node).getOrElse(0)
+    D.ebugPrintln("!!! MOVING ROBBER !!!")
+    client.moveRobber(game, ourPlayerData, bestHex)
+    pause(2000)
+  }
+
+  override def pickMonopolyResources(): Unit = {
+    waitingForGameState = true
+    expectPLAY1 = true
+    counter = 0
+    client.pickResourceType(game, this.monopolyChoice.getOrElse(0))
+    pause(1500)
+  }
+
+  override def doActionsOnTurn(): Unit = {
+    val state = GameState(getGame, getGame.getCurrentPlayerNumber, possibleHands)
+    val bestMove = selectBestMove(GameState.getPossibleMovesForState(state))
+    doMove(bestMove)
+  }
+
+  override def pickPlayer(msg: SOCChoosePlayerRequest): Unit = {
+
+    val choicePl = moveAndSteal.flatMap(_.playerStole).getOrElse(-1)
+    counter = 0
+    client.choosePlayer(game, choicePl)
+  }
+
+  override def discardCards(numToDiscard: Int): SOCResourceSet = {
+    val state = GameState(getGame, getGame.getCurrentPlayerNumber, possibleHands)
+    val bestDiscard = selectBestMove(GameState.getPossibleDiscards(getOurPlayerData, numToDiscard)).asInstanceOf[DiscardResources]
+    bestDiscard.resourceSet
+  }
 
 
+
+/*
   override def run: Unit = {
     //Thread name for debug
     try
@@ -82,7 +180,7 @@ class RobotBrainML(rc: SOCRobotClient,
 
       while (alive) {
         try
-          val mes: SOCMessage = gameEventQ.get // Sleeps until message received
+          val mes = gameEventQ.get // Sleeps until message received
 
           val mesType = {
             if (mes != null) { // Debug aid: When looking at message contents or setting a per-message breakpoint,
@@ -320,5 +418,6 @@ class RobotBrainML(rc: SOCRobotClient,
     }
 
   }
+  */
 
 }

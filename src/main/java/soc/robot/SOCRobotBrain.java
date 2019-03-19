@@ -1558,11 +1558,7 @@ public class SOCRobotBrain extends Thread
                         {
                             if (!(expectPLAY1) && (counter < 4000))
                             {
-                                waitingForGameState = true;
-                                expectPLAY1 = true;
-                                counter = 0;
-                                client.pickResourceType(game, monopolyStrategy.getMonopolyChoice());
-                                pause(1500);
+                                pickMonopolyResources();
                             }
                         }
                     }
@@ -1663,118 +1659,14 @@ public class SOCRobotBrain extends Thread
                             if (! (expectROLL_OR_CARD && (counter < 4000)))
                             {
                                 counter = 0;
-
-                                //D.ebugPrintln("DOING PLAY1");
-                                if (D.ebugOn)
-                                {
+                                if (D.ebugOn) {
                                     client.sendText(game, "================================");
 
                                     // for each player in game:
                                     //    sendText and debug-prn game.getPlayer(i).getResources()
                                     printResources();
                                 }
-
-                                /**
-                                 * if we haven't played a dev card yet,
-                                 * and we have a knight, and we can get
-                                 * largest army, play the knight.
-                                 * If we're in SPECIAL_BUILDING (not PLAY1),
-                                 * can't trade or play development cards.
-                                 *
-                                 * In scenario _SC_PIRI (which has no robber and
-                                 * no largest army), play one whenever we have
-                                 * it, someone else has resources, and we can
-                                 * convert a ship to a warship.
-                                 */
-                                if ((game.getGameState() == SOCGame.PLAY1) && ! ourPlayerData.hasPlayedDevCard())
-                                {
-                                    playKnightCardIfShould();  // might set expectPLACING_ROBBER and waitingForGameState
-                                }
-
-                                /**
-                                 * make a plan if we don't have one,
-                                 * and if we haven't given up building
-                                 * attempts this turn.
-                                 */
-                                if ( (! expectPLACING_ROBBER) && buildingPlan.empty()
-                                     && (ourPlayerData.getResources().getTotal() > 1)
-                                     && (failedBuildingAttempts < MAX_DENIED_BUILDING_PER_TURN))
-                                {
-                                    planBuilding();
-
-                                        /*
-                                         * planBuilding takes these actions, sets buildingPlan and other fields
-                                         * (see its javadoc):
-                                         *
-                                        decisionMaker.planStuff(robotParameters.getStrategyType());
-
-                                        if (! buildingPlan.empty())
-                                        {
-                                            lastTarget = (SOCPossiblePiece) buildingPlan.peek();
-                                            negotiator.setTargetPiece(ourPlayerNumber, buildingPlan.peek());
-                                        }
-                                         */
-                                }
-
-                                //D.ebugPrintln("DONE PLANNING");
-                                if ( (! expectPLACING_ROBBER) && (! buildingPlan.empty()))
-                                {
-                                    // Time to build something.
-
-                                    // Either ask to build a piece, or use trading or development
-                                    // cards to get resources to build it.  See javadoc for flags set
-                                    // (expectPLACING_ROAD, etc).  In a future iteration of the run loop
-                                    // with the expected PLACING_ state, we'll build whatWeWantToBuild
-                                    // in placeIfExpectPlacing().
-
-                                    buildOrGetResourceByTradeOrCard();
-                                }
-
-                                /**
-                                 * see if we're done with our turn
-                                 */
-                                if (! (expectPLACING_SETTLEMENT || expectPLACING_FREE_ROAD1 || expectPLACING_FREE_ROAD2
-                                       || expectPLACING_ROAD || expectPLACING_CITY || expectPLACING_SHIP
-                                       || expectWAITING_FOR_DISCOVERY || expectWAITING_FOR_MONOPOLY
-                                       || expectPLACING_ROBBER || waitingForTradeMsg || waitingForTradeResponse
-                                       || waitingForDevCard
-                                       || waitingForGameState
-                                       || (waitingForPickSpecialItem != null)))
-                                {
-                                    // Any last things for turn from game's scenario?
-                                    boolean scenActionTaken = false;
-                                    if (game.isGameOptionSet(SOCGameOption.K_SC_FTRI)
-                                        || game.isGameOptionSet(SOCGameOption.K_SC_PIRI))
-                                    {
-                                        // possibly attack pirate fortress
-                                        // or place a gift port for better bank trades
-                                        scenActionTaken = considerScenarioTurnFinalActions();
-                                    }
-
-                                    if (! scenActionTaken)
-                                    {
-                                        resetFieldsAtEndTurn();
-                                            /*
-                                             * These state fields are reset:
-                                             *
-                                            waitingForGameState = true;
-                                            counter = 0;
-                                            expectROLL_OR_CARD = true;
-                                            waitingForOurTurn = true;
-
-                                            doneTrading = (robotParameters.getTradeFlag() != 1);
-
-                                            //D.ebugPrintln("!!! ENDING TURN !!!");
-                                            negotiator.resetIsSelling();
-                                            negotiator.resetOffersMade();
-                                            buildingPlan.clear();
-                                            negotiator.resetTargetPieces();
-                                             */
-
-                                        pause(1500);
-                                        client.endTurn(game);
-                                    }
-                                }
+                                doActionsOnTurn();
                             }
                         }
                     }
@@ -1921,9 +1813,8 @@ public class SOCRobotBrain extends Thread
                         }
 
                         counter = 0;
-                        client.discard(game, DiscardStrategy.discard
-                            (((SOCDiscardRequest) mes).getNumberOfDiscards(), buildingPlan, rand,
-                              ourPlayerData, robotParameters, decisionMaker, negotiator));
+                        SOCResourceSet discards = discardCards(((SOCDiscardRequest) mes).getNumberOfDiscards());
+                        client.discard(game, discards);
 
                         //  }
                         break;
@@ -1931,10 +1822,7 @@ public class SOCRobotBrain extends Thread
                     case SOCMessage.CHOOSEPLAYERREQUEST:
                         {
                             final SOCChoosePlayerRequest msg = (SOCChoosePlayerRequest) mes;
-                            final int choicePl = RobberStrategy.chooseRobberVictim
-                                (msg.getChoices(), msg.canChooseNone(), game, playerTrackers);
-                            counter = 0;
-                            client.choosePlayer(game, choicePl);
+                            pickPlayer(msg);
                         }
                         break;
 
@@ -2082,6 +1970,130 @@ public class SOCRobotBrain extends Thread
         if (currGS != gs)
             oldGameState = currGS;  // if no actual change, don't overwrite previously known oldGameState
         SOCDisplaylessPlayerClient.handleGAMESTATE(game, gs);
+    }
+
+    protected void pickMonopolyResources() {
+        waitingForGameState = true;
+        expectPLAY1 = true;
+        counter = 0;
+        client.pickResourceType(game, monopolyStrategy.getMonopolyChoice());
+        pause(1500);
+    }
+
+    protected void pickPlayer(SOCChoosePlayerRequest msg) {
+
+        final int choicePl = RobberStrategy.chooseRobberVictim
+                (msg.getChoices(), msg.canChooseNone(), game, playerTrackers);
+        counter = 0;
+        client.choosePlayer(game, choicePl);
+    }
+
+    protected void doActionsOnTurn() {
+
+
+        //D.ebugPrintln("DOING PLAY1");
+
+
+        /**
+         * if we haven't played a dev card yet,
+         * and we have a knight, and we can get
+         * largest army, play the knight.
+         * If we're in SPECIAL_BUILDING (not PLAY1),
+         * can't trade or play development cards.
+         *
+         * In scenario _SC_PIRI (which has no robber and
+         * no largest army), play one whenever we have
+         * it, someone else has resources, and we can
+         * convert a ship to a warship.
+         */
+        if ((game.getGameState() == SOCGame.PLAY1) && !ourPlayerData.hasPlayedDevCard()) {
+            playKnightCardIfShould();  // might set expectPLACING_ROBBER and waitingForGameState
+        }
+
+        /**
+         * make a plan if we don't have one,
+         * and if we haven't given up building
+         * attempts this turn.
+         */
+        if ((!expectPLACING_ROBBER) && buildingPlan.empty()
+                && (ourPlayerData.getResources().getTotal() > 1)
+                && (failedBuildingAttempts < MAX_DENIED_BUILDING_PER_TURN)) {
+            planBuilding();
+
+                                        /*
+                                         * planBuilding takes these actions, sets buildingPlan and other fields
+                                         * (see its javadoc):
+                                         *
+                                        decisionMaker.planStuff(robotParameters.getStrategyType());
+
+                                        if (! buildingPlan.empty())
+                                        {
+                                            lastTarget = (SOCPossiblePiece) buildingPlan.peek();
+                                            negotiator.setTargetPiece(ourPlayerNumber, buildingPlan.peek());
+                                        }
+                                         */
+        }
+
+        //D.ebugPrintln("DONE PLANNING");
+        if ((!expectPLACING_ROBBER) && (!buildingPlan.empty())) {
+            // Time to build something.
+
+            // Either ask to build a piece, or use trading or development
+            // cards to get resources to build it.  See javadoc for flags set
+            // (expectPLACING_ROAD, etc).  In a future iteration of the run loop
+            // with the expected PLACING_ state, we'll build whatWeWantToBuild
+            // in placeIfExpectPlacing().
+
+            buildOrGetResourceByTradeOrCard();
+        }
+
+        /**
+         * see if we're done with our turn
+         */
+        if (!(expectPLACING_SETTLEMENT || expectPLACING_FREE_ROAD1 || expectPLACING_FREE_ROAD2
+                || expectPLACING_ROAD || expectPLACING_CITY || expectPLACING_SHIP
+                || expectWAITING_FOR_DISCOVERY || expectWAITING_FOR_MONOPOLY
+                || expectPLACING_ROBBER || waitingForTradeMsg || waitingForTradeResponse
+                || waitingForDevCard
+                || waitingForGameState
+                || (waitingForPickSpecialItem != null))) {
+            // Any last things for turn from game's scenario?
+            boolean scenActionTaken = false;
+            if (game.isGameOptionSet(SOCGameOption.K_SC_FTRI)
+                    || game.isGameOptionSet(SOCGameOption.K_SC_PIRI)) {
+                // possibly attack pirate fortress
+                // or place a gift port for better bank trades
+                scenActionTaken = considerScenarioTurnFinalActions();
+            }
+
+            if (!scenActionTaken) {
+                resetFieldsAtEndTurn();
+                                            /*
+                                             * These state fields are reset:
+                                             *
+                                            waitingForGameState = true;
+                                            counter = 0;
+                                            expectROLL_OR_CARD = true;
+                                            waitingForOurTurn = true;
+
+                                            doneTrading = (robotParameters.getTradeFlag() != 1);
+
+                                            //D.ebugPrintln("!!! ENDING TURN !!!");
+                                            negotiator.resetIsSelling();
+                                            negotiator.resetOffersMade();
+                                            buildingPlan.clear();
+                                            negotiator.resetTargetPieces();
+                                             */
+
+                pause(1500);
+                client.endTurn(game);
+            }
+        }
+    }
+
+    protected SOCResourceSet discardCards(int numToDiscard) {
+        return DiscardStrategy.discard(numToDiscard, buildingPlan, rand,
+                        ourPlayerData, robotParameters, decisionMaker, negotiator);
     }
 
     /**
@@ -2562,41 +2574,39 @@ public class SOCRobotBrain extends Thread
      * @see #playKnightCardIfShould()
      * @since 1.1.08
      */
-    private void rollOrPlayKnightOrExpectDice()
-    {
+    private void rollOrPlayKnightOrExpectDice() {
         expectROLL_OR_CARD = false;
 
-        if ((! waitingForOurTurn) && ourTurn)
-        {
-            if (!expectPLAY1 && !expectDISCARD && !expectPLACING_ROBBER && ! (expectDICERESULT && (counter < 4000)))
-            {
-                /**
-                 * if we have a knight card and the robber
-                 * is on one of our numbers, play the knight card
-                 */
-                if (ourPlayerData.getInventory().hasPlayable(SOCDevCardConstants.KNIGHT)
-                    && (rejectedPlayDevCardType != SOCDevCardConstants.KNIGHT)
-                    && (! game.isGameOptionSet(SOCGameOption.K_SC_PIRI))  // scenario has no robber; wait until after roll
-                    && ! ourPlayerData.getNumbers().hasNoResourcesForHex(game.getBoard().getRobberHex()))
-                {
-                    playKnightCard();  // sets expectPLACING_ROBBER, waitingForGameState
-                }
-                else
-                {
-                    expectDICERESULT = true;
-                    counter = 0;
-
-                    //D.ebugPrintln("!!! ROLLING DICE !!!");
-                    client.rollDice(game);
-                }
+        if ((!waitingForOurTurn) && ourTurn) {
+            if (!expectPLAY1 && !expectDISCARD && !expectPLACING_ROBBER && !(expectDICERESULT && (counter < 4000))) {
+                rollOrPlayCard();
             }
-        }
-        else
-        {
+
+        } else {
             /**
              * not our turn
              */
             expectDICERESULT = true;
+        }
+    }
+
+    protected void rollOrPlayCard() {
+
+        /**
+         * if we have a knight card and the robber
+         * is on one of our numbers, play the knight card
+         */
+        if (ourPlayerData.getInventory().hasPlayable(SOCDevCardConstants.KNIGHT)
+                && (rejectedPlayDevCardType != SOCDevCardConstants.KNIGHT)
+                && (!game.isGameOptionSet(SOCGameOption.K_SC_PIRI))  // scenario has no robber; wait until after roll
+                && !ourPlayerData.getNumbers().hasNoResourcesForHex(game.getBoard().getRobberHex())) {
+            playKnightCard();  // sets expectPLACING_ROBBER, waitingForGameState
+        } else {
+            expectDICERESULT = true;
+            counter = 0;
+
+            //D.ebugPrintln("!!! ROLLING DICE !!!");
+            client.rollDice(game);
         }
     }
 
