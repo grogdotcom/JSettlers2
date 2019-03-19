@@ -157,23 +157,6 @@ public class SOCPlayerClient
     public static final String PREF_BOT_TRADE_REJECT_SEC = "botTradeRejectSec";
 
     /**
-     * The classic JSettlers green background color; green tone #61AF71.
-     * Typically used with foreground color {@link Color#BLACK},
-     * like in {@link SwingMainDisplay}'s main panel.
-     * Occasionally used with {@link #MISC_LABEL_FG_OFF_WHITE}.
-     * @since 2.0.00
-     * @see SOCPlayerInterface#DIALOG_BG_GOLDENROD
-     */
-    public static final Color JSETTLERS_BG_GREEN = new Color(97, 175, 113);
-
-    /**
-     * For miscellaneous labels, off-white foreground color #FCFBF3.
-     * Typically used on {@link #JSETTLERS_BG_GREEN}.
-     * @since 2.0.00
-     */
-    public static final Color MISC_LABEL_FG_OFF_WHITE = new Color(252, 251, 243);
-
-    /**
      * i18n text strings in our {@link #cliLocale}.
      * @since 2.0.00
      */
@@ -899,8 +882,8 @@ public class SOCPlayerClient
      */
     public static void main(String[] args)
     {
-        SwingMainDisplay mainDisplay = null;
-        SOCPlayerClient client = null;
+        final SOCPlayerClient client;
+        final SwingMainDisplay mainDisplay;
 
         String host = null;  // from args, if not empty
         int port = -1;
@@ -930,12 +913,21 @@ public class SOCPlayerClient
         } catch (Exception e) {}
 
         client = new SOCPlayerClient();
-        mainDisplay = new SwingMainDisplay((args.length == 0), client);
+        JFrame frame = new JFrame(client.strings.get("pcli.main.title", Version.version()));  // "JSettlers client {0}"
+
+        final int displayScale = SwingMainDisplay.checkDisplayScaleFactor(frame);
+        SwingMainDisplay.scaleUIManagerFonts(displayScale);
+
+        final Color[] colors = SwingMainDisplay.getForegroundBackgroundColors(false, false);
+        if (colors != null)
+        {
+            frame.setBackground(colors[2]);  // SwingMainDisplay.JSETTLERS_BG_GREEN
+            frame.setForeground(colors[0]);  // Color.BLACK
+        }
+
+        mainDisplay = new SwingMainDisplay((args.length == 0), client, displayScale);
         client.setMainDisplay(mainDisplay);
 
-        JFrame frame = new JFrame(client.strings.get("pcli.main.title", Version.version()));  // "JSettlers client {0}"
-        frame.setBackground(JSETTLERS_BG_GREEN);
-        frame.setForeground(Color.black);
         // Add a listener for the close event
         frame.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
         frame.addWindowListener(mainDisplay.createWindowAdapter());
@@ -944,7 +936,7 @@ public class SOCPlayerClient
 
         frame.add(mainDisplay, BorderLayout.CENTER);
         frame.setLocationByPlatform(true);
-        frame.setSize(650, 400);
+        frame.setSize(650 * displayScale, 400 * displayScale);
         frame.setVisible(true);
 
         if (Version.versionNumber() == 0)

@@ -66,13 +66,13 @@ import soc.game.SOCGame;
     extends JFrame implements ActionListener, WindowListener, KeyListener
 {
     /** Face button that launched us. Passed to constructor, not null. */
-    protected SOCFaceButton fb;
+    protected final SOCFaceButton fb;
 
     /** Player client. Passed to constructor, not null */
-    protected SOCPlayerClient pcli;
+    protected final SOCPlayerClient pcli;
 
     /** Player interface. Passed to constructor, not null */
-    protected SOCPlayerInterface pi;
+    protected final SOCPlayerInterface pi;
 
     /** Player number. Needed for bg color. */
     protected int pNumber;
@@ -134,17 +134,26 @@ import soc.game.SOCGame;
         pNumber = pnum;
         faceWidthPx = faceWidth;
         stillAvailable = true;
+        final int displayScale = pi.displayScale;
 
-        setBackground(SOCPlayerInterface.DIALOG_BG_GOLDENROD);  // Actual face-icon backgrounds will match player.
-        setForeground(Color.BLACK);
-        setFont(new Font("Dialog", Font.PLAIN, 12));
-        getRootPane().setBackground(null);  // inherit
-        getContentPane().setBackground(null);
+        final boolean isOSHighContrast = SwingMainDisplay.isOSColorHighContrast();
+        if (! isOSHighContrast)
+        {
+            final Color[] colors = SwingMainDisplay.getForegroundBackgroundColors(true, false);
+
+            setBackground(colors[2]);  // SwingMainDisplay.DIALOG_BG_GOLDENROD; face-icon backgrounds will match player
+            setForeground(colors[0]);  // Color.BLACK
+
+            getRootPane().setBackground(null);  // inherit
+            getContentPane().setBackground(null);
+        }
+        setFont(new Font("Dialog", Font.PLAIN, 12 * displayScale));
+
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 
         changeFaceBut = new JButton(strings.get("base.change"));
         cancelBut = new JButton(strings.get("base.cancel"));
-        if (SOCPlayerClient.IS_PLATFORM_WINDOWS)
+        if (SOCPlayerClient.IS_PLATFORM_WINDOWS && ! isOSHighContrast)
         {
             // avoid gray corners on win32 JButtons
             changeFaceBut.setBackground(null);
@@ -152,8 +161,9 @@ import soc.game.SOCGame;
         }
         setLayout (new BorderLayout());
 
+        final int bsize = 4 * displayScale;
         promptLbl = new JLabel(strings.get("facechooser.prompt"), SwingConstants.LEFT);  // "Choose your face icon."
-        promptLbl.setBorder(new EmptyBorder(4, 4, 4, 4));
+        promptLbl.setBorder(new EmptyBorder(bsize, bsize, bsize, bsize));
         add(promptLbl, BorderLayout.NORTH);
 
         fcl = new FaceChooserList(this, faceID);
@@ -162,7 +172,7 @@ import soc.game.SOCGame;
         try
         {
             Point mloc = MouseInfo.getPointerInfo().getLocation();
-            setLocation(mloc.x + 20, mloc.y + 10);
+            setLocation(mloc.x + 20 * displayScale, mloc.y + 10 * displayScale);
         } catch (RuntimeException e) {
             // in case of SecurityException, etc
             setLocationRelativeTo(gamePI);
@@ -439,7 +449,7 @@ import soc.game.SOCGame;
          */
         protected static int faceRowsHeight = 6;
 
-        protected FaceChooserFrame fcf;
+        protected final FaceChooserFrame fcf;
         private int currentRow;     // upper-left row #, first row is 0
         private int currentOffset;  // upper-left, from faceid==0
         private int rowCount;       // how many rows total
@@ -541,10 +551,11 @@ import soc.game.SOCGame;
                 faceSB.addKeyListener(fcf);  // Handle Enter, Esc keys on window's behalf
             }
 
-            wantW = rowFacesWidth * SOCFaceButton.FACE_WIDTH_BORDERED_PX;
-            wantH = faceRowsHeight * SOCFaceButton.FACE_WIDTH_BORDERED_PX;
+            final int displayScale = fcf.pi.displayScale;
+            wantW = rowFacesWidth * SOCFaceButton.FACE_WIDTH_BORDERED_PX * displayScale;
+            wantH = faceRowsHeight * SOCFaceButton.FACE_WIDTH_BORDERED_PX * displayScale;
             scrollW = 0;  // unknown before is visible
-            padW = 10;  padH = 30;  // assumes. Will get actual at doLayout.
+            padW = 10 * displayScale;  padH = 30 * displayScale;  // assumed; will get actual at doLayout.
             wantSize = new Dimension (wantW + padW, wantH + padH);
         }
 
@@ -938,7 +949,7 @@ import soc.game.SOCGame;
                 faceSB.setSize(scrollW, height);
             }
 
-            int rowHeightPx = SOCFaceButton.FACE_WIDTH_BORDERED_PX;
+            final int rowHeightPx = SOCFaceButton.FACE_WIDTH_BORDERED_PX * fcf.pi.displayScale;
             for (int r = 0; r < faceRowsHeight; ++r)
             {
                 visibleFaceGrid[r].setLocation(x, y);
@@ -957,7 +968,7 @@ import soc.game.SOCGame;
          */
         private class FaceChooserRow extends Container
         {
-            private int startFaceId;
+            private final int startFaceId;
 
             /** Will not go past SOCFaceButton.NUM_FACES */
             private SOCFaceButton[] faces;
@@ -970,7 +981,7 @@ import soc.game.SOCGame;
              * @param startId  Starting face ID (ID of first face in row)
              * @throws IllegalArgumentException if startId<=0 or startId >= SOCFaceButton.NUM_FACES
              */
-            public FaceChooserRow (int startId)
+            public FaceChooserRow (final int startId)
                 throws IllegalArgumentException
             {
                 if ((startId <= 0) || (startId >= SOCFaceButton.NUM_FACES))
