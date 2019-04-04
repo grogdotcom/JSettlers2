@@ -5,9 +5,11 @@ When preparing to release a new version, testing should include:
 ## Quick tests and setup
 
 - Before building the JARs to be tested, `git status` should have no untracked or uncommitted changes
-    - The `dist-src` build target also checks this
-- `gradle test` runs without failures
-- Automated tests in build.xml `test` target
+    - Running `gradle distCheckSrcDirty` also checks that, listing any files with such changes
+- `gradle clean test` runs without failures, under gradle 4 and also gradle 5
+- These should print the expected version and build number:
+    - `java -jar build/libs/JSettlers-2.*.jar --version`
+    - `java -jar build/libs/JSettlersServer-2.*.jar --version`
 - Message Traffic debug prints during all tests, to help debugging if needed:  
   Run server and clients with JVM property `-Djsettlers.debug.traffic=Y`
 
@@ -195,13 +197,6 @@ When preparing to release a new version, testing should include:
 - Command line and jsserver.properties
     - Server and client: `-h` / `--help` / `-?`, `--version`
     - Server: Unknown args `-x -z` should print both, then not continue startup
-	- Server: Automated test for various argument/property combinations, in a terminal or command prompt:
-
-          cd src/main/test
-          python test_func_srv_startup_params.py
-
-      The test script should run for about a minute, and end with:  
-      `All tests passed.`
     - Start client w/ no args, start client with host & port on command line
     - Game option defaults on command line, in `jsserver.properties`: `-oVP=t11 -oN7=t5 -oRD=y`
     - Server prop for no chat channels (`jsettlers.client.maxcreatechannels=0`):  
@@ -277,25 +272,54 @@ See [Database.md](Database.md) for versions to test ("JSettlers is tested with..
         - "force end turn" output, and occasional bad placements or bank trades, are expected and OK
         - If any exceptions occur: Debug, triage, document or correct them
 - Board layout generator stability:
-    - This is a scripted test to set up, start, and run in the background.
+    - See `extraTest` section, or run as:  
+      `gradle extraTest -D 'test.single=*TestBoardLayouts*' -x :extraTestPython`
+- Build contents and built artifacts
+    - `gradle dist` runs without errors, under gradle 4 and also gradle 5
+    - Diff list of files from `gradle dist` outputs in `build/distributions/`:
+        - `unzip -t jsettlers-2.*-full.zip | sort`
+        - `tar tzf jsettlers-2.*-full.tar.gz | sort` (same files as above)
+        - `tar tzf jsettlers-2.*-src.tar.gz | sort` (same but without *.jar)
+    - Diff that list of files against previously released version's `full.tar.gz`
+        - Make sure any missing/moved/removed files are deliberate (from refactoring, etc)
+    - In a temp dir, do a fresh git checkout and compare contents:  
+      Example if using `bash`:
+
+            cd my_project_top_level_dir  # containing src, doc, etc
+            MYTOPDIR=$(pwd)
+            cd /tmp && mkdir jt && cd jt
+            git clone https://github.com/jdmonin/JSettlers2.git
+            cd JSettlers2
+            X_IGNORES="-x .git -x build -x target -x tmp"
+			diff -ur $X_IGNORES . "$MYTOPDIR" | grep ^Only  # check for missing/extra files
+            diff -ur $X_IGNORES . "$MYTOPDIR"  # check for uncommitted or unpushed changes
+            cd .. && rm -rf JSettlers2
+            cd .. && rmdir jt
+
+
+## Automated extra testing (extraTest)
+
+A few functional tests are scripted to set up, begin, and run in the background
+while you're doing other work or other testing.
+
+Open a terminal or command prompt, go to the project's top-level directory
+(containing `build.gradle`), and run:  
+`gradle extraTest`
+
+These tests will run for several minutes, and end without errors:  
+`BUILD SUCCESSFUL`
+
+The current Extra Tests are:
+
+- Game: `TestBoardLayoutsRounds`: Board layout generator stability:
     - The board layout generator is complicated, to flexibly handle the sea scenario layouts.
       This test ensures it won't hang, time out, or crash while making a new board or resetting a board,
-      by running many rounds of a unit test.
-    - Locate where `junit.jar` and its dependency `hamcrest.core.jar` are on your system
-         - Their filenames might contain version numbers
-         - They may be within the IDE install, or the gradle cache
-         - Note the full path to each one, like `/Applications/eclipse/plugins/org.hamcrest.core_1.1.0.v20090501071000.jar`
-    - Open a bash shell
-    - `cd` to the git repo's root directory (containing src, test, build, and other subdirs)
-    - `gradle build`    # generate test classes
-    - Set up a CLASSPATH which has junit, hamcrest.core, and the built jsettlers classes. Example:  
-      `export CLASSPATH="/Applications/eclipse/plugins/org.junit_4.10.0.v4_10_0_v20120426-0900/junit.jar:/Applications/eclipse/plugins/org.hamcrest.core_1.1.0.v20090501071000.jar:./build/classes/main:./build/classes/test"`
-    - Loop for at least 2400 iterations of `soctest.game.TestBoardLayouts`:
-
-            java soctest.game.TestBoardLayouts 2400
-
-      When run in this mode, TestBoardLayouts performs extra checks of the layout structure.
+      by running a couple thousand rounds of a unit test.
+    - When run in this mode, each round of TestBoardLayouts performs extra checks of the layout structure.
       If any layout failures occur, that's a bug to be triaged or corrected before release.
+- Server: `test_startup_params.py`: Various argument/property combinations:
+    - The test script should run for about two minutes, and end without errors
+
 
 ## Platform-specific
 
@@ -307,13 +331,13 @@ On most recent and less-recent OSX and Windows; oldest JRE (java 6) and a new JR
 - Graphics, including scaling and antialiasing after window resize
 - High-DPI support: Test layout and font appearance
     - Run as usual (auto-detect resolution) on a low-DPI and a high-DPI display if available
-	- Override runs, using jvm property `-Djsettlers.uiScale=1` and again using `-Djsettlers.uiScale=2`
+    - Override runs, using jvm property `-Djsettlers.uiScale=1` and again using `-Djsettlers.uiScale=2`
 - Persistent user prefs (sound, auto-reject bot offer, window size)  
   Then, re-run to check default size with jvm property `-Djsettlers.debug.clear_prefs=PI_width,PI_height`
 - Accessibility/High-Contrast mode
-	- Test debug jvm property `-Djsettlers.uiContrastMode=light`
+    - Test debug jvm property `-Djsettlers.uiContrastMode=light`
     - On Windows, test high-contrast dark and light themes, and high-contrast accessibility mode
-	- On Windows, test debug jvm property `-Djsettlers.uiContrastMode=dark` while using a dark theme
+    - On Windows, test debug jvm property `-Djsettlers.uiContrastMode=dark` while using a dark theme
 - SQLite database setup, from instructions in [Database.md](Database.md)
 
 ## Instructions and Setup

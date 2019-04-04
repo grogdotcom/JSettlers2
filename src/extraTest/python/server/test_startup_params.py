@@ -6,9 +6,9 @@
 
 # File/directory assumptions at runtime (mostly tested in env_ok()):
 # - Python interpreter is python2, not python3  [env_ok() prints warning if 3]
-# - This script lives in test/bin/ and that's the current directory when ran  [not tested]
+# - This script lives in extraTest/python/server/ and that's the current directory when ran
 # - Properties files can be created and deleted in test/tmp/  [tests dir existence only]
-# - Server JAR has been built already, to ../../target/JSettlersServer.jar or ../../build/libs/JSettlersServer-?.?.??.jar
+# - Server JAR has been built already, to target/JSettlersServer.jar or build/libs/JSettlersServer-?.?.??.jar
 # - java command is on the PATH
 # Since this is a testing script, most error conditions will throw an exception
 # instead of being caught (for example, os.chdir failure).
@@ -17,16 +17,19 @@
 # Overall test function: all_tests, which calls arg_test or
 # gameopt_tests_cmdline_propsfile to run individual tests.
 # Basic functions used per test: _run_and_get_outputs, print_result
+# Because these tests must run in a specific order, entire file looks like 1 "unit test" to PyUnit.
 
 
 from __future__ import print_function  # Python 2.6 or higher is required
 
-import glob, os, re, socket, subprocess, sys, time
+import glob, os, re, socket, subprocess, sys, time, unittest
 from threading import Thread
 
 FNAME_JSSERVER_JAR = "JSettlersServer.jar"
+EXPECTED_STARTUP_DIR = "src/extraTest/python"
+STARTUP_POSSIBLE_SUBDIR = "server"  # starts here if ran directly from command line, not part of discovered set of all tests
 REL_PATHS_JS_SERVER_JAR = ("../../../target/" + FNAME_JSSERVER_JAR, "../../../build/libs/JSettlersServer-?.?.??.jar")
-REL_PATH_TEMPDIR = "../tmp"
+REL_PATH_TEMPDIR = "../../test/tmp"
 FNAME_JSSERVER_PROPS = "jsserver.properties"
 MAX_TIMEOUT_SEC = 20
 
@@ -51,7 +54,28 @@ def env_ok():
     if sys.version_info[0] > 2:
         print_err("Warning: python3 not supported; may give errors writing jsserver.properties (unicode vs string bytes)")
 
-    # paths and files
+    # paths and files:
+    cwd = os.getcwd()
+    if (not cwd):
+        print_err("Can't determine current directory")
+        return False
+    EXPECTED_STARTUP_DIR_ELEMS = EXPECTED_STARTUP_DIR.split("/")
+    if STARTUP_POSSIBLE_SUBDIR == os.path.split(cwd)[1]:
+        # if ran standalone, change to parent dir where rest of test cases live;
+        # then, startup environment is same as when all test cases are ran together
+        os.chdir("..")
+        cwd = os.getcwd()
+        if (not cwd):
+            print_err("Can't determine current directory")
+            return False
+    while len(cwd) and len(EXPECTED_STARTUP_DIR_ELEMS):
+        (cwd, basename) = os.path.split(cwd)  # "a/b/c" -> ("a/b", "c"); "c" -> ("", "c")
+        expected_basename = EXPECTED_STARTUP_DIR_ELEMS.pop()
+        if basename != expected_basename:
+           print_err("Expected current directory (" + os.getcwd() + ") to end with "
+               + os.path.join(*(EXPECTED_STARTUP_DIR.split("/"))))
+           all_ok = False
+           break
     if not os.path.isdir(REL_PATH_TEMPDIR):
         all_ok = False
         print_err("Missing required directory " + REL_PATH_TEMPDIR)
@@ -80,7 +104,7 @@ def env_ok():
     # (no need to parse version# in this test script)
     try:
         (ec, stdout, stderr) = _run_and_get_outputs("java", ["-version"])
-        if ec != 0 or not re.search("java version", str(stdout)+" "+str(stderr), re.I):
+        if ec != 0 or not re.search("(openjdk|java) version", str(stdout)+" "+str(stderr), re.I):
             all_ok = False
             if ec != 0:
                 print_err("Failed to run: java -version")
@@ -305,7 +329,7 @@ def arg_test(should_startup, cmdline_params="", propsfile_contents=None, expecte
         tests_failed_count += 1
         print(prn_startup + " -> FAIL")
         if (expected_output_incl is not None) and not did_startup:
-            print("EXPECTED: " + expected_output_incl)
+            print("EXPECTED: " + str(expected_output_incl))
         print("STDOUT: " + stdout)
         print("STDERR: " + stderr)
         if propsfile_contents is not None:
@@ -464,35 +488,27 @@ def cleanup():
     if os.path.exists(FNAME_JSSERVER_PROPS):
         os.remove(FNAME_JSSERVER_PROPS)
 
-def main():
-    """Main function: Check environment, set up, run tests, clean up.
+class test_startup_params(unittest.TestCase):
 
-    Returns:
-        If any tests failed, calls sys.exit(tests_failed_count).
-        Otherwise, exit code is 0 (default).
-    """
+    def test_params_main(self):
+        """Main function: Check environment, set up, run tests, clean up, assert tests_failed_count==0."""
 
-    global tests_failed_count
+        global tests_failed_count
 
-    if not env_ok():
-        print_err("")
-        print_err("*** Exiting due to missing required conditions. ***")
-        sys.exit(1)  # <--- Early exit ---
-    setup()
-    if (os.name == 'posix'):
-        test_run_and_get_outputs()  # only if on unix: runs sleep, false commands
-    all_tests()
-    cleanup()
+        self.assertTrue(env_ok(), "*** Exiting due to missing required conditions. ***")
+        setup()
+        if (os.name == 'posix'):
+            test_run_and_get_outputs()  # only if on unix: runs sleep, false commands
+        all_tests()
+        cleanup()
 
-    print("")
-    if (tests_failed_count > 0):
-        print("Total failure count: " + str(tests_failed_count))
-        sys.exit(tests_failed_count)
-    else:
-        print("All tests passed.")
+        print("")
+        self.assertEqual(tests_failed_count, 0, "Total failure count: " + str(tests_failed_count))
+        # else: print("All tests passed.")
 
 
-main()
+if __name__ == '__main__':
+    unittest.main()
 
 
 # This file is part of the JSettlers project.
