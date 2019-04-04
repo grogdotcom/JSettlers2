@@ -590,7 +590,7 @@ public class SOCServer extends Server
      * @see #checkForExpiredTurns(long)
      * @since 1.1.11
      */
-    public static int ROBOT_FORCE_ENDTURN_SECONDS = 8;
+    public static int ROBOT_FORCE_ENDTURN_SECONDS = 16;
         // If this value is changed, also update the jsettlers.bots.timeout.turn
         // comments in /src/main/bin/jsserver.properties.sample.
 
@@ -603,7 +603,7 @@ public class SOCServer extends Server
      * @see SOCPlayer#STUBBORN_ROBOT_FORCE_END_TURN_THRESHOLD
      * @since 2.0.00
      */
-    public static int ROBOT_FORCE_ENDTURN_STUBBORN_SECONDS = 4;
+    public static int ROBOT_FORCE_ENDTURN_STUBBORN_SECONDS = 12;
 
     /**
      * Maximum permitted player name length, default 20 characters.

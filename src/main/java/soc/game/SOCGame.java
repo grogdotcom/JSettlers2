@@ -5272,9 +5272,13 @@ public class SOCGame implements Serializable, Cloneable
                         anyGoldHex = true;
                 }
             }
+            SOCResourceSet overflow = new SOCResourceSet();
             if (!bank.contains(totalCollected)) {
-                SOCResourceSet overflow = new SOCResourceSet(totalCollected);
-                overflow.subtract(bank);
+                for (int i = SOCResourceConstants.CLAY; i <= SOCResourceConstants.WOOD; i++) {
+                    if (bank.getAmount(i) < totalCollected.getAmount(i))
+                        overflow.add(1, 1);
+
+                }
             }
             for (int i = 0; i < maxPlayers; i++)
             {
@@ -5282,16 +5286,20 @@ public class SOCGame implements Serializable, Cloneable
                 {
                     SOCPlayer pl = players[i];
                     SOCResourceSet gainedFromRoll = getResourcesGainedFromRoll(pl, currentDice);
-                    
-                    for (int c = 1; c <= 5; c++) {
-                        int amount = gainedFromRoll.getAmount(c);
-                        gainedFromRoll.subtract(amount, c);
+
+                    for (int c = SOCResourceConstants.CLAY; c <= SOCResourceConstants.WOOD; c++) {
+                        if (overflow.contains(c)) {
+                            int amount = gainedFromRoll.getAmount(c);
+                            gainedFromRoll.subtract(amount, c);
+                        }
                     }
+
                     pl.addRolledResources(gainedFromRoll);
                     bank.subtract(gainedFromRoll);
                
                 }
             }
+
 
 
 
@@ -6958,6 +6966,7 @@ public class SOCGame implements Serializable, Cloneable
 
         if (! currPlayer.getResources().contains(give))
         {
+            soc.debug.D.ebugPrintln(currPlayer.getName() + ": " + currPlayer.getResources());
             return false;
         }
 

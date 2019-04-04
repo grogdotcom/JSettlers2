@@ -22,67 +22,116 @@ class RobotBrainML(rc: SOCRobotClient,
 
   //Temporary!! Anything with two steps probably needs to be done seperately
   def doMove(move: SOCPossibleMove): Unit = move match {
-    case RollDice =>
-      expectDICERESULT = true
-      counter = 0
-      client.rollDice(game)
-    case EndTurn =>
-      waitingForGameState = true
-      counter = 0
-      expectROLL_OR_CARD = true
-      waitingForOurTurn = true
+      case RollDice =>
+        expectDICERESULT = true
+        counter = 0
+        client.rollDice(game)
+      case EndTurn =>
+        waitingForGameState = true
+        counter = 0
+        expectROLL_OR_CARD = true
+        waitingForOurTurn = true
 
-      doneTrading = robotParameters.getTradeFlag != 1
-      client.endTurn(game)
-    case InitialPlacement(settlementNode, roadEdge) =>
-      client.putPiece(game, new SOCSettlement(ourPlayerData, settlementNode, null)) //Phase1A
-      client.putPiece(game, new SOCRoad(ourPlayerData, roadEdge, null))             //Phase 1B
-    case RobberLocationsAndSteal(bestHex, choicePl) =>
-      moveAndSteal = Some(RobberLocationsAndSteal(bestHex, choicePl))
+        doneTrading = robotParameters.getTradeFlag != 1
+        client.endTurn(game)
+      case InitialPlacement(settlementNode, roadEdge) =>
+        client.putPiece(game, new SOCSettlement(ourPlayerData, settlementNode, null)) //Phase1A
+        client.putPiece(game, new SOCRoad(ourPlayerData, roadEdge, null))             //Phase 1B
+      case RobberLocationsAndSteal(bestHex, choicePl) =>
+        moveAndSteal = Some(RobberLocationsAndSteal(bestHex, choicePl))
 
-      client.moveRobber(game, ourPlayerData, bestHex)
-    case BuyDevelopmentCard => client.buyDevCard(game)
-    case BuildSettlement(node) =>
-      whatWeWantToBuild = new SOCSettlement(ourPlayerData, node, game.getBoard)
-      client.buildRequest(game, SOCPlayingPiece.SETTLEMENT)
-    case BuildCity(node) =>
-      whatWeWantToBuild = new SOCCity(ourPlayerData, node, game.getBoard)
-      client.buildRequest(game, SOCPlayingPiece.CITY)
-    case BuildRoad(edge) =>
-      whatWeWantToBuild = new SOCRoad(ourPlayerData, edge, game.getBoard)
-      client.buildRequest(game, SOCPlayingPiece.ROAD)
-    case PortTrade(give, get) => client.bankTrade(game, give, get)
-    case Trade(offer) => ()
-    case Knight(robber) =>
-      expectPLACING_ROBBER = true
-      waitingForGameState = true
-      counter = 0
-      moveAndSteal = Some(robber)
+        client.moveRobber(game, ourPlayerData, bestHex)
+      case BuyDevelopmentCard => client.buyDevCard(game)
+      case BuildSettlement(node) =>
+        val targetPiece = new SOCPossibleSettlement(ourPlayerData, node, null)
+        lastMove = targetPiece
+        currentDRecorder = (currentDRecorder + 1) % 2
+        negotiator.setTargetPiece(this.getOurPlayerNumber, targetPiece)
 
-      client.playDevCard(game, SOCDevCardConstants.KNIGHT)
-//      client.moveRobber(game, ourPlayerData, robber.node)
-//      client.choosePlayer(game, robber.playerStole.getOrElse(-1))
-    case YearOfPlenty(res1, res2) =>
-      val resources = new SOCResourceSet()
-      resources.add(1, res1)
-      resources.add(1, res2)
-      resourceChoices = resources
+        waitingForGameState = true
+        counter = 0
+        expectPLACING_SETTLEMENT = true
+        whatWeWantToBuild = new SOCSettlement(ourPlayerData, targetPiece.getCoordinates, null)
+        if (!(whatWeWantToBuild == whatWeFailedToBuild)) {
+          D.ebugPrintln("!!! BUILD REQUEST FOR A SETTLEMENT " + Integer.toHexString(targetPiece.getCoordinates) + " !!!")
+          client.buildRequest(game, SOCPlayingPiece.SETTLEMENT)
+        }
+        else { // We already tried to build this.
+          cancelWrongPiecePlacementLocal(whatWeWantToBuild)
+          // cancel sets whatWeWantToBuild = null;
+        }
+      case BuildCity(node) =>
+        val targetPiece = new SOCPossibleCity(ourPlayerData, node)
+        lastMove = targetPiece
+        currentDRecorder = (currentDRecorder + 1) % 2
+        negotiator.setTargetPiece(this.getOurPlayerNumber, targetPiece)
 
-      client.playDevCard(game, SOCDevCardConstants.DISC)
-    case Monopoly(res) =>
-      monopolyChoice = Some(res)
+        waitingForGameState = true
+        counter = 0
+        expectPLACING_CITY = true
+        whatWeWantToBuild = new SOCCity(ourPlayerData, targetPiece.getCoordinates, null)
+        if (!(whatWeWantToBuild == whatWeFailedToBuild)) {
+          D.ebugPrintln("!!! BUILD REQUEST FOR A CITY " + Integer.toHexString(targetPiece.getCoordinates) + " !!!")
+          client.buildRequest(game, SOCPlayingPiece.CITY)
+        }
+        else { // We already tried to build this.
+          cancelWrongPiecePlacementLocal(whatWeWantToBuild)
+          // cancel sets whatWeWantToBuild = null;
+        }
+      case BuildRoad(edge) =>
+        val targetPiece = new SOCPossibleRoad(ourPlayerData, edge, null)
+        lastMove = targetPiece
+        currentDRecorder = (currentDRecorder + 1) % 2
+        negotiator.setTargetPiece(this.getOurPlayerNumber, targetPiece)
 
-      client.playDevCard(game, SOCDevCardConstants.MONO)
-    case RoadBuilder(edge1, edge2) =>
-      client.playDevCard(game, SOCDevCardConstants.ROADS)
-      val targetPiece1 = new SOCPossibleRoad(ourPlayerData, edge1, null);
-      negotiator.setTargetPiece(getOurPlayerNumber, targetPiece1)
-      client.buildRequest(game, SOCPlayingPiece.ROAD)
-      val targetPiece2 = new SOCPossibleRoad(ourPlayerData, edge2, null);
-      negotiator.setTargetPiece(getOurPlayerNumber, targetPiece2)
-      client.buildRequest(game, SOCPlayingPiece.ROAD)
-  }
+        waitingForGameState = true
+        counter = 0
+        expectPLACING_ROAD = true
+        whatWeWantToBuild = new SOCRoad(ourPlayerData, targetPiece.getCoordinates, null)
+        if (!(whatWeWantToBuild == whatWeFailedToBuild)) {
+          D.ebugPrintln("!!! BUILD REQUEST FOR A ROAD AT " + Integer.toHexString(targetPiece.getCoordinates) + " !!!")
+          client.buildRequest(game, SOCPlayingPiece.ROAD)
+        }
+        else { // We already tried to build this.
+          cancelWrongPiecePlacementLocal(whatWeWantToBuild)
+          // cancel sets whatWeWantToBuild = null;
+        }
 
+      case PortTrade(give, get) =>
+        client.bankTrade(game, give, get)
+        waitingForTradeMsg = true
+      case Trade(offer) => ()
+      case Knight(robber) =>
+        expectPLACING_ROBBER = true
+        waitingForGameState = true
+        counter = 0
+        moveAndSteal = Some(robber)
+
+        client.playDevCard(game, SOCDevCardConstants.KNIGHT)
+      //      client.moveRobber(game, ourPlayerData, robber.node)
+      //      client.choosePlayer(game, robber.playerStole.getOrElse(-1))
+      case YearOfPlenty(res1, res2) =>
+        val resources = new SOCResourceSet()
+        resources.add(1, res1)
+        resources.add(1, res2)
+        resourceChoices = resources
+
+        client.playDevCard(game, SOCDevCardConstants.DISC)
+      case Monopoly(res) =>
+        monopolyChoice = Some(res)
+
+        client.playDevCard(game, SOCDevCardConstants.MONO)
+      case RoadBuilder(edge1, edge2) =>
+        waitingForGameState = true
+        counter = 0
+        expectPLACING_FREE_ROAD1 = true
+        whatWeWantToBuild = new SOCRoad(ourPlayerData, edge1, null)
+
+        val targetPiece = new SOCPossibleRoad(ourPlayerData, edge2, null)
+        buildingPlan.push(targetPiece)
+
+        client.playDevCard(game, SOCDevCardConstants.ROADS)
+    }
 
   def selectBestMove(moves: List[SOCPossibleMove]): SOCPossibleMove = moves(rand.nextInt(moves.length))
 
@@ -126,10 +175,16 @@ class RobotBrainML(rc: SOCRobotClient,
   override def rollOrPlayCard(): Unit = doActionsOnTurn
 
   override def moveRobber(): Unit = {
-    val bestHex = moveAndSteal.map(_.node).getOrElse(0)
+    moveAndSteal = Some(moveAndSteal.getOrElse {
+      val state = GameState(getGame, getGame.getCurrentPlayerNumber, possibleHands)
+      val moves = GameState.getPossibleRobberLocations(state.player, state.game)
+      selectBestMove(moves)
+    }.asInstanceOf[RobberLocationsAndSteal])
+
+    val bestHex = moveAndSteal.map(_.node).getOrElse (0)
     D.ebugPrintln("!!! MOVING ROBBER !!!")
     client.moveRobber(game, ourPlayerData, bestHex)
-    pause(2000)
+    //pause(2000)
   }
 
   override def pickMonopolyResources(): Unit = {
@@ -140,10 +195,12 @@ class RobotBrainML(rc: SOCRobotClient,
     pause(1500)
   }
 
-  override def doActionsOnTurn(): Unit = {
+  override protected def doActionsOnTurn(): Unit = {
     val state = GameState(getGame, getGame.getCurrentPlayerNumber, possibleHands)
-    val bestMove = selectBestMove(GameState.getPossibleMovesForState(state))
+    val moves = GameState.getPossibleMovesForState(state)
+    val bestMove = selectBestMove(moves)
     doMove(bestMove)
+
   }
 
   override def pickPlayer(msg: SOCChoosePlayerRequest): Unit = {
@@ -151,6 +208,7 @@ class RobotBrainML(rc: SOCRobotClient,
     val choicePl = moveAndSteal.flatMap(_.playerStole).getOrElse(-1)
     counter = 0
     client.choosePlayer(game, choicePl)
+    moveAndSteal = None
   }
 
   override def discardCards(numToDiscard: Int): SOCResourceSet = {

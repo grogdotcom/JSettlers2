@@ -25,7 +25,7 @@ case class BuildRoad(node: Int) extends SOCPossibleBuild
 case class BuildSettlement(node: Int) extends SOCPossibleBuild
 case class BuildCity(node: Int) extends SOCPossibleBuild
 
-case class PortTrade(to: SOCResourceSet, from: SOCResourceSet) extends SOCPossibleTrade
+case class PortTrade(give: SOCResourceSet, get: SOCResourceSet) extends SOCPossibleTrade
 case class Trade(socTrade: SOCTradeOffer)  extends SOCPossibleTrade
 
 case class Knight(robber: RobberLocationsAndSteal) extends SOCPossibleDevCard

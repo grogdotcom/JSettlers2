@@ -82,7 +82,7 @@ object GameState {
         hexes.foreach { hex =>
           val roll = Roll(socBoard.getNumberOnHexFromCoord(hex))
           val res = socBoard.getHexTypeFromCoord(hex)
-          dots.add(roll.dots, res)
+          if ((1 to 5).contains(res)) dots.add(roll.dots, res)
         }
       }
       cities.foreach { city =>
@@ -90,7 +90,7 @@ object GameState {
         hexes.foreach { hex =>
           val roll = Roll(socBoard.getNumberOnHexFromCoord(hex))
           val res = socBoard.getHexTypeFromCoord(hex)
-          dots.add(roll.dots * 2, res)
+          if ((1 to 5).contains(res)) dots.add(roll.dots * 2, res)
         }
       }
 
@@ -131,20 +131,25 @@ object GameState {
 
   def getPossibleBuilds(player: SOCPlayer): List[SOCPossibleBuild] = {
     //val player = getOurPlayerData
-    val containsResources: ResourceSet => Boolean = player.getResources.contains(_: ResourceSet)
+    def containsResources: ResourceSet => Boolean = player.getResources.contains(_: ResourceSet)
 
-    val buildPotentialSettlements: List[SOCPossibleBuild] = if (containsResources(SOCSettlement.COST)) {
-      player.getPotentialSettlements_arr.toList.map(BuildSettlement)
+
+    val buildPotentialSettlements: List[SOCPossibleBuild] = if (containsResources(SOCSettlement.COST) && player.getSettlements.size < 5) {
+        val settlements = player.getPotentialSettlements_arr
+        if (settlements == null) Nil
+        else settlements.toList.map(BuildSettlement)
     } else Nil
 
-    val buildPotentialCities: List[SOCPossibleBuild] = if (containsResources(SOCCity.COST)) {
-      player.getSettlements.toArray.toList.map{ settlement =>
+    val buildPotentialCities: List[SOCPossibleBuild] = if (containsResources(SOCCity.COST) && player.getSettlements.size < 4) {
+        player.getSettlements.toArray.toList.map{ settlement =>
         BuildCity(settlement.asInstanceOf[SOCSettlement].getCoordinates)
       }
     } else Nil
 
-    val buildPotentialRoads: List[SOCPossibleBuild] = if (containsResources(SOCRoad.COST)) {
-      player.getPotentialRoads_arr.toList.map(BuildRoad)
+    val buildPotentialRoads: List[SOCPossibleBuild] = if (containsResources(SOCRoad.COST) && player.getSettlements.size < 15) {
+        val roads = player.getPotentialRoads_arr
+        if (roads == null) Nil
+        else roads.toList.map(BuildRoad)
     } else Nil
 
     val buildDevelopmentCard: List[SOCPossibleBuild] = if(containsResources(SOCDevCard.COST)) List(BuyDevelopmentCard)
@@ -161,27 +166,31 @@ object GameState {
     resources.flatMap { res: Int =>
       val otherRes = resources.filterNot(_ == res)
       val num = resourceSet.getAmount(res)
-      val to = new SOCResourceSet()
-      val from = new SOCResourceSet()
       if (player.getPortFlag(res) && num >= 2) {
-        to.add(2, res)
+        val give = new SOCResourceSet()
+        give.add(2, res)
         otherRes.map{ r =>
-          from.add(1, r)
-          PortTrade(to,  from)
+          val get = new SOCResourceSet()
+          get.add(1, r)
+          PortTrade(new SOCResourceSet(give),  get)
         }
       }
       else if (_3to1 && num >= 3) {
-        to.add(3, res)
+        val give = new SOCResourceSet()
+        give.add(3, res)
         otherRes.map{ r =>
-          from.add(1, r)
-          PortTrade(to,  from)
+          val get = new SOCResourceSet()
+          get.add(1, r)
+          PortTrade(new SOCResourceSet(give),  get)
         }
       }
       else if(num >= 4) {
-        to.add(4, res)
+        val give = new SOCResourceSet()
+        give.add(4, res)
         otherRes.map{ r =>
-          from.add(1, r)
-          PortTrade(to,  from)
+          val get = new SOCResourceSet()
+          get.add(1, r)
+          PortTrade(new SOCResourceSet(give),  get)
         }
       }
       else Nil
@@ -191,15 +200,16 @@ object GameState {
   def getPossibleRobberLocations(player: SOCPlayer, game: SOCGame): List[RobberLocationsAndSteal] = {
 
 
-    val allNodes = game.getBoard.getLandHexCoords.filterNot(_ == game.getBoard.getRobberHex)
-    allNodes.flatMap { node =>
-      game.getPlayersOnHex(node, null).toArray.map(_.asInstanceOf[SOCPlayer])
-        .map(_.getPlayerNumber)
-        .filterNot(_ == player.getPlayerNumber).toList match {
-        case Nil => List(RobberLocationsAndSteal(node, None))
-        case list => list.map( n => RobberLocationsAndSteal(node, Some(n)))
+    game.getBoard.getLandHexCoords
+      .filterNot(_ == game.getBoard.getRobberHex)
+      .flatMap { node =>
+        game.getPlayersOnHex(node, null).toArray
+          .map(_.asInstanceOf[SOCPlayer].getPlayerNumber)
+          .filterNot(_ == player.getPlayerNumber).toList match {
+            case Nil => List(RobberLocationsAndSteal(node, None))
+            case list => list.map( n => RobberLocationsAndSteal(node, Some(n)))
+          }
       }
-    }
   }.toList
 
   def getPossibleDiscards(player: SOCPlayer, numToDiscard: Int): List[DiscardResources] = {
@@ -592,14 +602,14 @@ object GameState {
 
     val updatedBank = {
       val bank = new SOCResourceSet(state.bank.resourceSet)
-      bank.subtract(portTrade.to)
-      bank.add(portTrade.from)
+      bank.subtract(portTrade.give)
+      bank.add(portTrade.get)
       BankState(bank)
     }
 
     val transactions = List(
-      Lose(currentPlayer.position, portTrade.from),
-      Gain(currentPlayer.position, portTrade.to)
+      Lose(currentPlayer.position, portTrade.get),
+      Gain(currentPlayer.position, portTrade.give)
     )
     val possibleHands = SOCPossibleHands.calculateHands(state.possibleHands, transactions)
 

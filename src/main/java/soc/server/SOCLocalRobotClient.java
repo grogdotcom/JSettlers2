@@ -23,6 +23,7 @@ package soc.server;
 
 import java.util.Hashtable;
 
+import soc.robot.RobotClientML;
 import soc.robot.SOCRobotClient;
 
 /**
@@ -90,9 +91,9 @@ import soc.robot.SOCRobotClient;
     {
         SOCRobotClient rcli;
         if (strSocketName != null)
-            rcli = new SOCRobotClient(strSocketName, rname, "pw", cookie);
+            rcli = new RobotClientML(strSocketName, rname, "pw", cookie);
         else
-            rcli = new SOCRobotClient("localhost", port, rname, "pw", cookie);
+            rcli = new RobotClientML("localhost", port, rname, "pw", cookie);
         rcli.printedInitialWelcome = true;  // don't clutter the server console
 
         Thread rth = new Thread(new SOCLocalRobotClient(rcli));
